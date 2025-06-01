@@ -1,0 +1,40 @@
+from django.db import models
+from django.conf import settings
+from django.utils.translation import gettext_lazy as _
+
+
+class Ingredient(models.Model):
+    name = models.CharField(_('Название'))
+    measurement_unit = models.CharField(_('единица измерения'))
+
+    class Meta:
+        verbose_name = _('Ингридиент')
+        verbose_name_plural = _('Ингридиенты')
+
+
+class Recipe(models.Model):
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL)
+    ingredients = models.ManyToManyField(Ingredient,
+                                         related_name='recipes',
+                                         name=_('Ингридиенты'),
+                                         through='RecipeIngredients')
+    is_favorited = models.BooleanField(_('В избранном'), default=False)
+    is_in_shopping_cart = models.BooleanField(_('В корзине'), default=False)
+    name = models.CharField(_('Название'), max_length=256)
+    image = models.TextField(_('Картинка'))
+    text = models.TextField(_('Описание'))
+    cooking_time = models.PositiveIntegerField(_('Время приготовления'))
+
+    class Meta:
+        verbose_name = _('Рецепт')
+        verbose_name_plural = _('Рецепты')
+
+
+class RecipeIngredients(models.Model):
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE)
+    amount = models.PositiveIntegerField(_(''), default=1)
+
+    class Meta:
+        verbose_name = _('Ингридиент в рецепте')
+        verbose_name_plural = _('Ингридиенты в рецептах')
