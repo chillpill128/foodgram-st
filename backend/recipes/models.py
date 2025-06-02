@@ -13,10 +13,10 @@ class Ingredient(models.Model):
 
 
 class Recipe(models.Model):
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL)
-    ingredients = models.ManyToManyField(Ingredient,
+    author = models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    ingredients = models.ManyToManyField(to=Ingredient,
                                          related_name='recipes',
-                                         name=_('Ингридиенты'),
+                                         verbose_name=_('Ингридиенты'),
                                          through='RecipeIngredients')
     is_favorited = models.BooleanField(_('В избранном'), default=False)
     is_in_shopping_cart = models.BooleanField(_('В корзине'), default=False)
