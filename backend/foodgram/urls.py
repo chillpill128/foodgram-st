@@ -18,6 +18,5 @@ from django.urls import path, include
 
 
 urlpatterns = [
-    path('api', include('recipes.urls')),
-    path('api', include('users.urls')),
+    path('api', include('foodgram.api_urls')),
 ]
