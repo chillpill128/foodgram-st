@@ -18,5 +18,5 @@ from django.urls import path, include
 
 
 urlpatterns = [
-    path('api', include('foodgram.api_urls')),
+    path('api/', include('foodgram.api_urls')),
 ]

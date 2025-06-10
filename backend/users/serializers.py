@@ -11,24 +11,19 @@ class UserListSerializer(ModelSerializer):
 
 
 class UserAddSerializer(ModelSerializer):
-    password = serializers.CharField()
+    password = serializers.CharField(max_length=128, write_only=True)
     class Meta:
         model = User
-        fields = ['email', 'username', 'first_name', 'last_name', 'password']
-
-
-class UserAddResponseSerializer(ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['email', 'id', 'username', 'first_name', 'last_name']
+        fields = ['email', 'id', 'username', 'first_name', 'last_name', 'password']
+        read_only_fields = ['id']
 
 
 class PasswordChangeSerializer(Serializer):
-    new_password = serializers.CharField()
-    current_password = serializers.CharField()
+    new_password = serializers.CharField(max_length=128)
+    current_password = serializers.CharField(max_length=128)
 
 
 class GetTokenSerializer(Serializer):
-    password = serializers.CharField()
+    password = serializers.CharField(max_length=128)
     email = serializers.EmailField()
 
