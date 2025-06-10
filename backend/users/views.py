@@ -7,7 +7,7 @@ from .serializers import (
     UserAddResponseSerializer)
 
 
-class UserViewSet(ModelViewSet):
+class UsersViewSet(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserListSerializer
 

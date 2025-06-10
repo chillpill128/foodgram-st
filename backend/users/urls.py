@@ -1,8 +1,7 @@
 from rest_framework import routers
-from .views import RecipesViewSet, IngredientViewSet
+from .views import UsersViewSet
 
 
-router = routers.SimpleRouter()
-router.register(r'recipe', RecipesViewSet)
-router.register(r'ingredient', IngredientViewSet)
+router = routers.DefaultRouter()
+router.register(r'users', UsersViewSet)
 urlpatterns = router.urls
