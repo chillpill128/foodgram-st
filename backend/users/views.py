@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
+
 from .models import User
 from .serializers import (
     UserListSerializer,
@@ -25,8 +26,10 @@ class UsersViewSet(ModelViewSet):
         # А если запрошенное действие — не 'list', применяем CatSerializer
         return UserListSerializer
 
-    @action(detail=False, methods=['post'])
-    def set_password(self, request):
+    @action(detail=False, methods=['post'], permission_classes=[],
+            url_path='set_password', url_name='set-password')
+    def set_password(self, request, *args, **kwargs):
+        """Изменить пароль"""
         #FIXME - переделать, когда разберусь с авторизацией
         user = get_current_user_tmp(request)
 
@@ -38,6 +41,24 @@ class UsersViewSet(ModelViewSet):
         else:
             return Response(serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], permission_classes=[],
+            url_path='subscriptions', url_name='subscriptions')
+    def subscriptions(self, request):
+        """Мои подписки"""
+        return Response()
+
+    @action(detail=True, methods=['post'], permission_classes=[],
+            url_path='subscribe', url_name='subscribe')
+    def subscribe(self, request, pk=None):
+        """Подписаться на пользователя"""
+        return Response()
+
+    @action(detail=True, methods=['delete'], permission_classes=[],
+            url_path='subscribe', url_name='unsubscribe')
+    def unsubscribe(self, request, pk=None):
+        """Отписаться от пользователя"""
+        return Response()
 
 
 

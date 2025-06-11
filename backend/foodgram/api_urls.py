@@ -15,6 +15,6 @@ urlpatterns = router.urls
 
 
 urlpatterns += [
-    path('auth/token/login', obtain_auth_token),
-    path('auth/token/logout', remove_auth_token),
+    path('auth/token/login/', obtain_auth_token),
+    path('auth/token/logout/', remove_auth_token),
 ]

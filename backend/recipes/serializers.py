@@ -7,11 +7,11 @@ from .models import Recipe, Ingredient, RecipeIngredients
 class RecipeSerializer(ModelSerializer):
     class Meta:
         model = Recipe
-        fields = "__all__"
+        fields = '__all__'
 
 
 class IngredientSerializer(ModelSerializer):
     class Meta:
         model = Ingredient
-        fields = "__all__"
+        fields = '__all__'
 
