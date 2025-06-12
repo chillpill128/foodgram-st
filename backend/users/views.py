@@ -8,7 +8,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from .models import User
 from .serializers import (
-    UserListSerializer,
+    UserViewSerializer,
     UserAddSerializer,
     PasswordChangeSerializer,
     GetTokenSerializer,
@@ -21,13 +21,13 @@ def get_current_user_tmp(request):
 
 class UsersViewSet(ModelViewSet):
     queryset = User.objects.all()
-    serializer_class = UserListSerializer
+    serializer_class = UserViewSerializer
 
     def get_serializer_class(self):
         if self.action == 'create':
             return UserAddSerializer
         # А если запрошенное действие — не 'list', применяем CatSerializer
-        return UserListSerializer
+        return UserViewSerializer
 
     @action(detail=False, methods=['post'], permission_classes=[],
             url_path='set_password', url_name='set-password')

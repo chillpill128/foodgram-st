@@ -4,12 +4,24 @@ from rest_framework.viewsets import ModelViewSet
 
 
 from .models import Recipe, Ingredient
-from .serializers import RecipeSerializer, IngredientSerializer
+from .serializers import (
+    RecipeViewSerializer,
+    RecipeChangeSerializer,
+    IngredientSerializer
+)
 
 
 class RecipesViewSet(ModelViewSet):
-    queryset = Recipe.objects.all()
-    serializer_class = RecipeSerializer
+    queryset = Recipe.objects.all().prefetch_related(
+        'recipeingredients',
+        'recipeingredients__ingredient'
+    )
+    serializer_class = RecipeViewSerializer
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update'):
+            return RecipeChangeSerializer
+        return RecipeViewSerializer
 
     @action(methods=['get'], detail=False, permission_classes=[],
             url_path='download_shopping_cart', url_name='download-shopping-cart')
@@ -42,10 +54,7 @@ class RecipesViewSet(ModelViewSet):
         return Response()
 
 
-
-
 class IngredientViewSet(ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
-
 

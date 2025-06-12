@@ -14,14 +14,14 @@ class Ingredient(models.Model):
 
 class Recipe(models.Model):
     author = models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    ingredients = models.ManyToManyField(to=Ingredient,
-                                         related_name='recipes',
-                                         verbose_name=_('Ингридиенты'),
-                                         through='RecipeIngredients')
+    # ingredients_to = models.ManyToManyField(to=Ingredient,
+    #                                      related_name='recipes',
+    #                                      verbose_name=_('Ингридиенты'),
+    #                                      through='RecipeIngredients')
     is_favorited = models.BooleanField(_('В избранном'), default=False)
     is_in_shopping_cart = models.BooleanField(_('В корзине'), default=False)
     name = models.CharField(_('Название'), max_length=256)
-    image = models.TextField(_('Картинка'))
+    image = models.ImageField(_('Картинка'))
     text = models.TextField(_('Описание'))
     cooking_time = models.PositiveIntegerField(_('Время приготовления'))
 
@@ -31,9 +31,9 @@ class Recipe(models.Model):
 
 
 class RecipeIngredients(models.Model):
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
-    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE)
-    amount = models.PositiveIntegerField(_(''), default=1)
+    recipe = models.ForeignKey(Recipe, related_name='recipeingredients', on_delete=models.CASCADE)
+    ingredient = models.ForeignKey(Ingredient, related_name='recipeingredients', on_delete=models.CASCADE)
+    amount = models.PositiveIntegerField(_('Количество'), default=1)
 
     class Meta:
         verbose_name = _('Ингридиент в рецепте')
