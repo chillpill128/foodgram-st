@@ -1,5 +1,8 @@
 from rest_framework import status
+from rest_framework.authtoken.views import ObtainAuthToken as drf_ObtainAuthToken
+from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
@@ -29,7 +32,7 @@ class UsersViewSet(ModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[],
             url_path='set_password', url_name='set-password')
     def set_password(self, request, *args, **kwargs):
-        """Изменить пароль"""
+        """Изменить пароль текущего пользователя"""
         #FIXME - переделать, когда разберусь с авторизацией
         user = get_current_user_tmp(request)
 
@@ -61,13 +64,8 @@ class UsersViewSet(ModelViewSet):
         return Response()
 
 
-
-from rest_framework.authtoken.views import ObtainAuthToken as drf_ObtainAuthToken
-from rest_framework.authtoken.models import Token
-from rest_framework.response import Response
-
-
 class ObtainAuthToken(drf_ObtainAuthToken):
+    """Получение токена авторизации"""
     serializer_class = GetTokenSerializer
 
     def post(self, request, *args, **kwargs):
@@ -80,10 +78,9 @@ class ObtainAuthToken(drf_ObtainAuthToken):
             'auth_token': token.key,
         })
 
-obtain_auth_token = ObtainAuthToken.as_view()
-
 
 class RemoveAuthToken(APIView):
+    """Удаление токена авторизации текущего пользователя"""
     def post(self, request, *args, **kwargs):
         #FIXME - переделать, когда разберусь с авторизацией
         user = get_current_user_tmp(request)
@@ -94,4 +91,6 @@ class RemoveAuthToken(APIView):
         Token.objects.delete(pk=user.auth_token.pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+obtain_auth_token = ObtainAuthToken.as_view()
 remove_auth_token = RemoveAuthToken.as_view()
