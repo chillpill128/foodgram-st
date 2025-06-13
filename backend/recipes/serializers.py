@@ -3,8 +3,14 @@ from django.core.files.base import ContentFile
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
-from .models import Recipe, Ingredient, RecipeIngredients
+from .models import Ingredient, Recipe, RecipeIngredients
 from users.serializers import UserViewSerializer
+
+
+class IngredientSerializer(ModelSerializer):
+    class Meta:
+        model = Ingredient
+        fields = '__all__'
 
 
 class RecipeIngredientSerializer(ModelSerializer):
@@ -43,7 +49,6 @@ class Base64ImageField(serializers.ImageField):
         if isinstance(data, str) and data.startswith('data:image'):
             format, imgstr = data.split(';base64,')
             ext = format.split('/')[-1]
-
             data = ContentFile(
                 base64.b64decode(imgstr),
                 name=f'temp.{ext}'
@@ -57,7 +62,7 @@ class RecipeIngredientAddSerializer(serializers.Serializer):
 
 
 class RecipeChangeSerializer(serializers.ModelSerializer):
-    ingredients = RecipeIngredientAddSerializer(many=True)
+    ingredients = RecipeIngredientAddSerializer(many=True, source='recipeingredients')
     image = Base64ImageField(required=True)
 
     class Meta:
@@ -82,3 +87,15 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
 
         return recipe
 
+
+class RecipeInShoppingCartSerializer(ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Recipe
+        fields = ['id', 'name', 'image', 'cooking_time']
+
+    def get_image(self, obj):
+        if obj.image:
+            return self.context['request'].build_absolute_uri(obj.image.url)
+        return None

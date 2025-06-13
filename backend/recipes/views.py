@@ -1,13 +1,17 @@
+from django.shortcuts import get_object_or_404
+from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 
-from .models import Recipe, Ingredient
+from .models import Recipe, Ingredient, ShoppingCart
 from .serializers import (
     RecipeViewSerializer,
     RecipeChangeSerializer,
-    IngredientSerializer
+    RecipeInShoppingCartSerializer,
+    IngredientSerializer,
 )
 
 
@@ -29,17 +33,46 @@ class RecipesViewSet(ModelViewSet):
         """Скачать список покупок в csv-формате"""
         return Response()
 
-    @action(methods=['post'], detail=True, permission_classes=[],
+
+    @action(methods=['post'], detail=True, permission_classes=[IsAuthenticated],
             url_path='shopping_cart', url_name='add-shopping-cart')
     def add_shopping_cart(self, request, pk=None):
         """Добавить рецепт в список покупок"""
-        return Response()
+        try:
+            recipe = Recipe.objects.get(pk=pk)
+        except Recipe.DoesNotExist:
+            return Response({'detail': 'Страница не найдена'},
+                            status=status.HTTP_404_NOT_FOUND)
+        user = request.user
 
-    @action(methods=['delete'], detail=True, permission_classes=[],
+        ShoppingCart.objects.get_or_create(user=user, recipe=recipe)
+        return Response(
+            RecipeInShoppingCartSerializer(instance=recipe)
+            , status=status.HTTP_201_CREATED
+        )
+
+    @action(methods=['delete'], detail=True, permission_classes=[IsAuthenticated],
             url_path='shopping_cart', url_name='delete-shopping-cart')
     def delete_shopping_cart(self, request, pk=None):
         """Удалить рецепт из списка покупок"""
-        return Response()
+        try:
+            recipe = Recipe.objects.get(pk=pk)
+        except Recipe.DoesNotExist:
+            return Response({'detail': 'Страница не найдена'},
+                            status=status.HTTP_404_NOT_FOUND)
+        user = request.user
+
+        try:
+            recipe_in_shopping_cart = ShoppingCart.objects.get(
+                user=user, recipe=recipe)
+        except Recipe.DoesNotExist:
+            return Response({'detail': 'Страница не найдена'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        recipe_in_shopping_cart.delete()
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )
 
     @action(methods=['post'], detail=True, permission_classes=[],
             url_path='favorite', url_name='add-favorite')
