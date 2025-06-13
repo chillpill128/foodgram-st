@@ -38,10 +38,47 @@ class RecipeViewSerializer(ModelSerializer):
         return None
 
 
-class RecipeChangeSerializer(ModelSerializer):
+class Base64ImageField(serializers.ImageField):
+    def to_internal_value(self, data):
+        if isinstance(data, str) and data.startswith('data:image'):
+            format, imgstr = data.split(';base64,')
+            ext = format.split('/')[-1]
+
+            data = ContentFile(
+                base64.b64decode(imgstr),
+                name=f'temp.{ext}'
+            )
+        return super().to_internal_value(data)
+
+
+class RecipeIngredientAddSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    amount = serializers.IntegerField(min_value=1)
+
+
+class RecipeChangeSerializer(serializers.ModelSerializer):
+    ingredients = RecipeIngredientAddSerializer(many=True)
+    image = Base64ImageField(required=True)
+
     class Meta:
         model = Recipe
-        fields = '__all__'
+        fields = ('ingredients', 'image', 'name', 'text', 'cooking_time')
+        extra_kwargs = {
+            'name': {'required': True},
+            'text': {'required': True},
+            'cooking_time': {'required': True, 'min_value': 1}
+        }
 
+    def create(self, validated_data):
+        ingredients_data = validated_data.pop('ingredients')
+        recipe = Recipe.objects.create(**validated_data)
 
+        for ingredient_data in ingredients_data:
+            RecipeIngredients.objects.create(
+                recipe=recipe,
+                ingredient_id=ingredient_data['id'],
+                amount=ingredient_data['amount']
+            )
+
+        return recipe
 
