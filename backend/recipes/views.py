@@ -1,3 +1,7 @@
+import csv
+from django.http import HttpResponse
+from django.db.models import Sum
+from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import (
@@ -7,15 +11,18 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from .models import FavoriteRecipe, Ingredient, Recipe, ShoppingCart
+from users.models import User
 from .serializers import (
+    IngredientSerializer,
     RecipeViewSerializer,
     RecipeChangeSerializer,
     RecipeShortenSerializer,
-    IngredientSerializer,
+    RecipeShortLinkSerializer,
 )
 
 
 class RecipesViewSet(ModelViewSet):
+    """Рецепты"""
     queryset = Recipe.objects.all().prefetch_related(
         'recipeingredients',
         'recipeingredients__ingredient'
@@ -28,12 +35,43 @@ class RecipesViewSet(ModelViewSet):
             return RecipeChangeSerializer
         return self.serializer_class
 
-    @action(methods=['get'], detail=False, permission_classes=[],
+    @action(methods=['get'], detail=False, permission_classes=[AllowAny],
             url_path='download_shopping_cart', url_name='download-shopping-cart')
     def download_shopping_cart(self, request):
         """Скачать список покупок в csv-формате"""
-        return Response()
 
+        user = request.user if request.user.is_authenticated else User.objects.first()
+
+        ingredients = (Ingredient.objects.filter(
+            recipeingredients__recipe__shopping_cart__user=user
+        ).order_by('name').distinct().annotate(
+            amount=Sum('recipeingredients__amount'))
+        )
+        # print(ingredients.query)
+
+        response = HttpResponse(
+            content_type = 'text/csv',
+            headers = {
+                'Content-Disposition': 'attachment; filename="Покупки.csv"',
+                'Cache-Control': 'no-cache',
+            })
+
+        writer = csv.writer(response)
+        writer.writerow(['№', _('Название'), _('Количество'), _('Единица измерения')])
+        for n, ing in enumerate(ingredients):
+            writer.writerow([n, ing.name, ing.amount, ing.measurement_unit])
+        return response
+
+    @action(methods=['get'], detail=True, permission_classes=[],
+            url_path='get_link', url_name='get-short-link')
+    def get_link(self, request, pk=None):
+        """Получить короткую ссылку"""
+        try:
+            recipe = Recipe.objects.get(pk=pk)
+        except Recipe.DoesNotExist:
+            return Response({'detail': _('Страница не найдена')},
+                            status=status.HTTP_404_NOT_FOUND)
+        return Response(RecipeShortLinkSerializer(instance=recipe))
 
     @action(methods=['post'], detail=True, permission_classes=[IsAuthenticated],
             url_path='shopping_cart', url_name='add-shopping-cart')
@@ -42,7 +80,7 @@ class RecipesViewSet(ModelViewSet):
         try:
             recipe = Recipe.objects.get(pk=pk)
         except Recipe.DoesNotExist:
-            return Response({'detail': 'Страница не найдена'},
+            return Response({'detail': _('Страница не найдена')},
                             status=status.HTTP_404_NOT_FOUND)
         user = request.user
 
@@ -59,7 +97,7 @@ class RecipesViewSet(ModelViewSet):
         try:
             recipe = Recipe.objects.get(pk=pk)
         except Recipe.DoesNotExist:
-            return Response({'detail': 'Страница не найдена'},
+            return Response({'detail': _('Страница не найдена')},
                             status=status.HTTP_404_NOT_FOUND)
         user = request.user
 
@@ -67,7 +105,7 @@ class RecipesViewSet(ModelViewSet):
             recipe_in_shopping_cart = ShoppingCart.objects.get(
                 user=user, recipe=recipe)
         except Recipe.DoesNotExist:
-            return Response({'detail': 'Страница не найдена'},
+            return Response({'detail': _('Страница не найдена')},
                             status=status.HTTP_404_NOT_FOUND)
 
         recipe_in_shopping_cart.delete()
@@ -82,7 +120,7 @@ class RecipesViewSet(ModelViewSet):
         try:
             recipe = Recipe.objects.get(pk=pk)
         except Recipe.DoesNotExist:
-            return Response({'detail': 'Страница не найдена'},
+            return Response({'detail': _('Страница не найдена')},
                             status=status.HTTP_404_NOT_FOUND)
         user = request.user
 
@@ -117,6 +155,7 @@ class RecipesViewSet(ModelViewSet):
 
 
 class IngredientViewSet(ReadOnlyModelViewSet):
+    """Ингридиенты"""
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     permission_classes = [AllowAny]

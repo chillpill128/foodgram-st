@@ -1,9 +1,9 @@
-import base64
-from django.core.files.base import ContentFile
+
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
 from .models import Ingredient, Recipe, RecipeIngredients
+from .utils import Base64ImageField
 from users.serializers import UserViewSerializer
 
 
@@ -42,18 +42,6 @@ class RecipeViewSerializer(ModelSerializer):
         if obj.image:
             return self.context['request'].build_absolute_uri(obj.image.url)
         return None
-
-
-class Base64ImageField(serializers.ImageField):
-    def to_internal_value(self, data):
-        if isinstance(data, str) and data.startswith('data:image'):
-            format, imgstr = data.split(';base64,')
-            ext = format.split('/')[-1]
-            data = ContentFile(
-                base64.b64decode(imgstr),
-                name=f'temp.{ext}'
-            )
-        return super().to_internal_value(data)
 
 
 class RecipeIngredientAddSerializer(serializers.Serializer):
@@ -99,3 +87,13 @@ class RecipeShortenSerializer(ModelSerializer):
         if obj.image:
             return self.context['request'].build_absolute_uri(obj.image.url)
         return None
+
+class RecipeShortLinkSerializer(ModelSerializer):
+    short_link = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Recipe
+        fields = ['short_link']
+
+    def get_short_link(self, obj):
+        return self.context['request'].build_absolute_uri(f'/s/{obj.short_link}')
