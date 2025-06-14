@@ -44,11 +44,25 @@ class RecipeIngredients(models.Model):
 
 
 class ShoppingCart(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='shopping_cart',on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, related_name='shopping_cart', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             related_name='shopping_cart',
+                             on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, related_name='shopping_cart',
+                               on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ['user', 'recipe']
         verbose_name = _('Рецепт в корзине')
         verbose_name_plural = _('Рецепты в корзине')
 
+
+class FavoriteRecipe(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='favorite',
+                             on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, related_name='favorite',
+                               on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ['user', 'recipe']
+        verbose_name = _('Рецепт в избранном')
+        verbose_name_plural = _('Рецепты в избранном')

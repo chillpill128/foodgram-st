@@ -1,16 +1,16 @@
-from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import (
+    AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
+)
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-
-from .models import Recipe, Ingredient, ShoppingCart
+from .models import FavoriteRecipe, Ingredient, Recipe, ShoppingCart
 from .serializers import (
     RecipeViewSerializer,
     RecipeChangeSerializer,
-    RecipeInShoppingCartSerializer,
+    RecipeShortenSerializer,
     IngredientSerializer,
 )
 
@@ -20,12 +20,13 @@ class RecipesViewSet(ModelViewSet):
         'recipeingredients',
         'recipeingredients__ingredient'
     )
+    permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = RecipeViewSerializer
 
     def get_serializer_class(self):
         if self.action in ('create', 'update'):
             return RecipeChangeSerializer
-        return RecipeViewSerializer
+        return self.serializer_class
 
     @action(methods=['get'], detail=False, permission_classes=[],
             url_path='download_shopping_cart', url_name='download-shopping-cart')
@@ -47,8 +48,8 @@ class RecipesViewSet(ModelViewSet):
 
         ShoppingCart.objects.get_or_create(user=user, recipe=recipe)
         return Response(
-            RecipeInShoppingCartSerializer(instance=recipe)
-            , status=status.HTTP_201_CREATED
+            RecipeShortenSerializer(instance=recipe),
+            status=status.HTTP_201_CREATED
         )
 
     @action(methods=['delete'], detail=True, permission_classes=[IsAuthenticated],
@@ -74,20 +75,48 @@ class RecipesViewSet(ModelViewSet):
             status=status.HTTP_204_NO_CONTENT
         )
 
-    @action(methods=['post'], detail=True, permission_classes=[],
+    @action(methods=['post'], detail=True, permission_classes=[IsAuthenticated],
             url_path='favorite', url_name='add-favorite')
     def add_to_favorite(self, request, pk=None):
         """Добавить рецепт в избранное"""
-        return Response()
+        try:
+            recipe = Recipe.objects.get(pk=pk)
+        except Recipe.DoesNotExist:
+            return Response({'detail': 'Страница не найдена'},
+                            status=status.HTTP_404_NOT_FOUND)
+        user = request.user
 
-    @action(methods=['delete'], detail=True, permission_classes=[],
+        FavoriteRecipe.objects.get_or_create(user=user, recipe=recipe)
+        return Response(
+            RecipeShortenSerializer(instance=recipe),
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(methods=['delete'], detail=True, permission_classes=[IsAuthenticated],
             url_path='favorite', url_name='delete-favorite')
     def delete_from_favorite(self, request, pk=None):
         """Удалить рецепт из избранного"""
-        return Response()
+        try:
+            recipe = Recipe.objects.get(pk=pk)
+        except Recipe.DoesNotExist:
+            return Response({'detail': 'Страница не найдена'},
+                            status=status.HTTP_404_NOT_FOUND)
+        user = request.user
+
+        try:
+            recipe_favorite = ShoppingCart.objects.get(
+                user=user, recipe=recipe)
+        except Recipe.DoesNotExist:
+            return Response({'detail': 'Страница не найдена'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        recipe_favorite.delete()
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 
-class IngredientViewSet(ModelViewSet):
+class IngredientViewSet(ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
-
+    permission_classes = [AllowAny]

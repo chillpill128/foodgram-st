@@ -88,7 +88,7 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         return recipe
 
 
-class RecipeInShoppingCartSerializer(ModelSerializer):
+class RecipeShortenSerializer(ModelSerializer):
     image = serializers.SerializerMethodField()
 
     class Meta:
