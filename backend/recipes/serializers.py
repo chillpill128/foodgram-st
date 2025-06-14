@@ -1,10 +1,10 @@
-
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
-from .models import Ingredient, Recipe, RecipeIngredients
-from .utils import Base64ImageField
 from users.serializers import UserViewSerializer
+from .models import Ingredient, Recipe, RecipeIngredients
+from .serializers_short import RecipeShortenSerializer
+from .utils import Base64ImageField
 
 
 class IngredientSerializer(ModelSerializer):
@@ -75,18 +75,6 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
 
         return recipe
 
-
-class RecipeShortenSerializer(ModelSerializer):
-    image = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Recipe
-        fields = ['id', 'name', 'image', 'cooking_time']
-
-    def get_image(self, obj):
-        if obj.image:
-            return self.context['request'].build_absolute_uri(obj.image.url)
-        return None
 
 class RecipeShortLinkSerializer(ModelSerializer):
     short_link = serializers.SerializerMethodField()

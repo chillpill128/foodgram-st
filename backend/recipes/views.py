@@ -71,7 +71,7 @@ class RecipesViewSet(ModelViewSet):
         except Recipe.DoesNotExist:
             return Response({'detail': _('Страница не найдена')},
                             status=status.HTTP_404_NOT_FOUND)
-        return Response(RecipeShortLinkSerializer(instance=recipe))
+        return Response(RecipeShortLinkSerializer(instance=recipe).data)
 
     @action(methods=['post'], detail=True, permission_classes=[IsAuthenticated],
             url_path='shopping_cart', url_name='add-shopping-cart')
@@ -86,7 +86,7 @@ class RecipesViewSet(ModelViewSet):
 
         ShoppingCart.objects.get_or_create(user=user, recipe=recipe)
         return Response(
-            RecipeShortenSerializer(instance=recipe),
+            RecipeShortenSerializer(instance=recipe).data,
             status=status.HTTP_201_CREATED
         )
 
@@ -109,9 +109,7 @@ class RecipesViewSet(ModelViewSet):
                             status=status.HTTP_404_NOT_FOUND)
 
         recipe_in_shopping_cart.delete()
-        return Response(
-            status=status.HTTP_204_NO_CONTENT
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['post'], detail=True, permission_classes=[IsAuthenticated],
             url_path='favorite', url_name='add-favorite')
@@ -126,7 +124,7 @@ class RecipesViewSet(ModelViewSet):
 
         FavoriteRecipe.objects.get_or_create(user=user, recipe=recipe)
         return Response(
-            RecipeShortenSerializer(instance=recipe),
+            RecipeShortenSerializer(instance=recipe).data,
             status=status.HTTP_201_CREATED
         )
 

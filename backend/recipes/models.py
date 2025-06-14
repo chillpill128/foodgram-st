@@ -2,7 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from .utils import generate_short_link
+from .utils import generate_short_link, generate_random_short_link
 
 
 class Ingredient(models.Model):
@@ -15,7 +15,9 @@ class Ingredient(models.Model):
 
 
 class Recipe(models.Model):
-    author = models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    author = models.ForeignKey(to=settings.AUTH_USER_MODEL,
+                               on_delete=models.CASCADE,
+                               related_name='recipes')
     ingredients = models.ManyToManyField(to=Ingredient,
                                          related_name='recipes',
                                          verbose_name=_('Ингридиенты'),
@@ -31,7 +33,11 @@ class Recipe(models.Model):
 
     def _generate_short_link(self):
         for num in range(3, 10):
-            short_link = generate_hash_part(self.pk, num)
+            short_link = generate_short_link(self.pk, num)
+            if not Recipe.objects.filter(short_link=short_link).exists():
+                return short_link
+        while True:
+            short_link = generate_random_short_link(10)
             if not Recipe.objects.filter(short_link=short_link).exists():
                 return short_link
 
