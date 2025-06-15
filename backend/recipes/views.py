@@ -27,8 +27,9 @@ class RecipesViewSet(ModelViewSet):
         'recipeingredients',
         'recipeingredients__ingredient'
     )
-    permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = RecipeViewSerializer
+    filterset_fields = ['author__id', 'is_subscribed', 'is_in_shopping_cart', 'is_favorited']
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self):
         if self.action in ('create', 'update'):
@@ -157,3 +158,4 @@ class IngredientViewSet(ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     permission_classes = [AllowAny]
+    search_fields = ['^name']

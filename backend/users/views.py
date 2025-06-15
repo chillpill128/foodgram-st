@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.authtoken.views import ObtainAuthToken as drf_ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -22,7 +22,8 @@ from .serializers import (
 class UsersViewSet(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserViewSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    filterset_fields = []
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -78,7 +79,6 @@ class UsersViewSet(ModelViewSet):
             user.avatar = None
             user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
 
     @action(detail=False, methods=['get'],
             permission_classes=[IsAuthenticated],
