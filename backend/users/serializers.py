@@ -55,13 +55,13 @@ class UserAddSerializer(ModelSerializer):
 
 class UserWithRecipesSerializer(ModelSerializer):
     recipes = RecipeShortenSerializer(many=True)
-    recipes_count = serializers.IntegerField()
+    # recipes_count = serializers.IntegerField()
     avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['email', 'id', 'username', 'first_name',
-                  'last_name', 'is_subscribed', 'avatar']
+                  'last_name', 'is_subscribed', 'recipes', 'avatar']
 
     def get_avatar(self, obj):
         if obj.avatar:

@@ -57,7 +57,8 @@ class RecipeIngredientAddSerializer(serializers.Serializer):
 
 
 class RecipeChangeSerializer(serializers.ModelSerializer):
-    ingredients = RecipeIngredientAddSerializer(many=True, source='recipeingredients')
+    ingredients = RecipeIngredientAddSerializer(many=True, source='recipeingredients',
+                                                required=True)
     image = Base64ImageField(required=True)
 
     class Meta:
@@ -66,20 +67,21 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'name': {'required': True},
             'text': {'required': True},
-            'cooking_time': {'required': True}
+            'ingredients': {'required': True},
+            'cooking_time': {'required': True, 'min_value': 1}
         }
 
     def create(self, validated_data):
-        ingredients_data = validated_data.pop('ingredients')
-        recipe = Recipe.objects.create(**validated_data)
+        ingredients_data = validated_data.pop('recipeingredients', None)
+        author = self.context['request'].user
+        recipe = Recipe.objects.create(author=author, **validated_data)
 
-        for ingredient_data in ingredients_data:
+        for ingredient in ingredients_data:
             RecipeIngredients.objects.create(
                 recipe=recipe,
-                ingredient_id=ingredient_data['id'],
-                amount=ingredient_data['amount']
+                ingredient_id=ingredient['id'],
+                amount=ingredient['amount']
             )
-
         return recipe
 
 

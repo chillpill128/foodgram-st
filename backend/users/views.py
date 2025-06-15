@@ -34,7 +34,7 @@ class UsersViewSet(mixins.CreateModelMixin,
             return UserAddSerializer
         return UserViewSerializer
 
-    @action(detail=False, methods=['post'],
+    @action(detail=False, methods=['POST'],
             permission_classes=[IsAuthenticated],
             url_path='set_password', url_name='set-password')
     def set_password(self, request, *args, **kwargs):
@@ -51,7 +51,7 @@ class UsersViewSet(mixins.CreateModelMixin,
             return Response(serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['get'],
+    @action(detail=False, methods=['GET'],
             permission_classes=[IsAuthenticated],
             url_path='me', url_name='me')
     def me(self, request):
@@ -60,7 +60,7 @@ class UsersViewSet(mixins.CreateModelMixin,
         serializer = self.get_serializer(instance=instance)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['put', 'delete'],
+    @action(detail=False, methods=['PUT', 'DELETE'],
             permission_classes=[IsAuthenticated],
             url_path='me/avatar', url_name='me-avatar')
     def me_upload_or_delete_avatar(self, request):
@@ -71,7 +71,7 @@ class UsersViewSet(mixins.CreateModelMixin,
         elif request.method == 'PUT':
             return self._upload_my_avatar(request)
         else:
-            return Response({'detail': 'Метод не поддерживется'},
+            return Response({'detail': 'Метод не поддерживается'},
                             status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def _upload_my_avatar(self, request):
@@ -92,45 +92,53 @@ class UsersViewSet(mixins.CreateModelMixin,
             user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False, methods=['get'],
+    @action(detail=False, methods=['GET'],
             permission_classes=[IsAuthenticated],
             url_path='subscriptions', url_name='subscriptions')
     def subscriptions(self, request):
         """Мои подписки"""
         user = request.user
-        user.subscriptions_my.all()
-
         queryset = user.subscriptions_my.all().prefetch_related('recipes')
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = UserWithRecipesSerializer(page, many=True)
+            serializer = UserWithRecipesSerializer(page, many=True,
+                                                   context=self.get_serializer_context())
             return self.get_paginated_response(serializer.data)
         else:
-            serializer = UserWithRecipesSerializer(page, many=True)
+            serializer = UserWithRecipesSerializer(queryset, many=True,
+                                                   context=self.get_serializer_context())
             return Response(serializer.data)
 
-    @action(detail=True, methods=['post', 'delete'],
+    @action(detail=True, methods=['POST', 'DELETE'],
             permission_classes=[IsAuthenticated],
             url_path='subscribe', url_name='subscribe-unsubscribe')
     def subscribe_unsubscribe(self, request, pk=None):
         """Подписаться или отписаться на пользователя"""
-        if request.method == 'post':
-            return self._subscribe(request, pk)
-        elif request.method == 'delete':
-            return self._unsubscribe(request, pk)
-
-    def _subscribe(self, request, pk):
         user = request.user
         author = self.get_object()
-        Subscription.objects.get_or_create(author=author, follower=user)
-        serializer = UserWithRecipesSerializer(instance=author)
+        if user == author:
+            return Response({'detail': 'Нельзя подписаться на себя'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == 'POST':
+            return self._subscribe(user, author)
+        elif request.method == 'DELETE':
+            return self._unsubscribe(user, author)
+        else:
+            return Response({'detail': 'Метод не поддерживается'},
+                                               status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def _subscribe(self, user, author):
+        if Subscription.objects.filter(author=author, follower=user).count() > 0:
+            return Response({'detail': 'Вы уже подписаны на данного пользователя'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        Subscription.objects.create(author=author, follower=user)
+        serializer = UserWithRecipesSerializer(instance=author,
+                                               context=self.get_serializer_context())
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def _unsubscribe(self, request, pk):
+    def _unsubscribe(self, user, author):
         """Отписаться от пользователя"""
-        user = request.user
-        author = self.get_object()
-
         try:
             subscr = Subscription.objects.get(author=author, follower=user)
         except Subscription.DoesNotExist:
