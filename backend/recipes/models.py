@@ -2,7 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from .utils import generate_short_link, generate_random_short_link
+from common.utils import generate_short_link, generate_random_short_link
 
 
 class Ingredient(models.Model):
@@ -22,8 +22,8 @@ class Recipe(models.Model):
                                          related_name='recipes',
                                          verbose_name=_('Ингридиенты'),
                                          through='RecipeIngredients')
-    is_favorited = models.BooleanField(_('В избранном'), default=False)
-    is_in_shopping_cart = models.BooleanField(_('В корзине'), default=False)
+    # is_favorited = models.BooleanField(_('В избранном'), default=False)
+    # is_in_shopping_cart = models.BooleanField(_('В корзине'), default=False)
     name = models.CharField(_('Название'), max_length=256)
     image = models.ImageField(_('Картинка'))
     text = models.TextField(_('Описание'))

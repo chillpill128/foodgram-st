@@ -5,8 +5,11 @@ from django.contrib.auth.models import AbstractUser
 
 
 class User(AbstractUser):
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+    email = models.EmailField(max_length=255, unique=True)
     is_subscribed = models.BooleanField(_('Подписан'), default=False)
-    avatar = models.ImageField(_('Аватар'), default=None, null=True)
+    avatar = models.ImageField(_('Аватар'), default=None, null=True, upload_to='avatars')
 
     class Meta:
         verbose_name = _('Пользователь')

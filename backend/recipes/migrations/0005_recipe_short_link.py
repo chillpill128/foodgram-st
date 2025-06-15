@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-from recipes.utils import generate_random_short_link
+from common.utils import generate_random_short_link
 
 
 class Migration(migrations.Migration):

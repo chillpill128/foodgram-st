@@ -1,6 +1,6 @@
 import csv
 from django.http import HttpResponse
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q, IntegerField
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.decorators import action
@@ -16,9 +16,9 @@ from .serializers import (
     IngredientSerializer,
     RecipeViewSerializer,
     RecipeChangeSerializer,
-    RecipeShortenSerializer,
     RecipeShortLinkSerializer,
 )
+from .serializers_short import RecipeShortenSerializer
 
 
 class RecipesViewSet(ModelViewSet):
@@ -28,8 +28,26 @@ class RecipesViewSet(ModelViewSet):
         'recipeingredients__ingredient'
     )
     serializer_class = RecipeViewSerializer
-    filterset_fields = ['author__id', 'is_subscribed', 'is_in_shopping_cart', 'is_favorited']
+    # filterset_fields = ['author__id', 'is_subscribed', 'is_in_shopping_cart',
+    #                     'is_favorited']
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset()
+        if user.is_authenticated:
+            queryset = queryset.annotate(
+                is_favorited=Count(
+                                   'favorite__id',
+                                   filter=Q(favorite__user=user),
+                                   output_field=IntegerField()
+                ),
+                is_in_shopping_cart=Count('shopping_cart__id',
+                                          filter=Q(shopping_cart__user=user),
+                                          output_field=IntegerField()
+              ))
+            # print(queryset.query)
+        return queryset
 
     def get_serializer_class(self):
         if self.action in ('create', 'update'):

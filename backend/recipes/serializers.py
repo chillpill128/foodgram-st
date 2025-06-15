@@ -2,9 +2,8 @@ from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
 from users.serializers import UserViewSerializer
+from common.utils import Base64ImageField
 from .models import Ingredient, Recipe, RecipeIngredients
-from .serializers_short import RecipeShortenSerializer
-from .utils import Base64ImageField
 
 
 class IngredientSerializer(ModelSerializer):
@@ -31,6 +30,8 @@ class RecipeViewSerializer(ModelSerializer):
         source='recipeingredients', many=True, read_only=True
     )
     image = serializers.SerializerMethodField()
+    is_favorited = serializers.SerializerMethodField()
+    is_in_shopping_cart = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -42,6 +43,12 @@ class RecipeViewSerializer(ModelSerializer):
         if obj.image:
             return self.context['request'].build_absolute_uri(obj.image.url)
         return None
+
+    def get_is_favorited(self, obj):
+        return hasattr(obj, 'is_favorited') and obj.is_favorited
+
+    def get_is_in_shopping_cart(self, obj):
+        return hasattr(obj, 'is_in_shopping_cart') and obj.is_in_shopping_cart
 
 
 class RecipeIngredientAddSerializer(serializers.Serializer):
@@ -59,7 +66,7 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'name': {'required': True},
             'text': {'required': True},
-            'cooking_time': {'required': True, 'min_value': 1}
+            'cooking_time': {'required': True}
         }
 
     def create(self, validated_data):

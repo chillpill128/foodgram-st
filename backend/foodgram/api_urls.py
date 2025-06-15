@@ -7,9 +7,9 @@ from users.views import UsersViewSet, obtain_auth_token, remove_auth_token
 
 router = DefaultRouter()
 
-router.register('recipes', RecipesViewSet)
+router.register('recipes', RecipesViewSet, basename='recipe')
 router.register('ingredients', IngredientViewSet)
-router.register('users', UsersViewSet)
+router.register('users', UsersViewSet, basename='user')
 
 urlpatterns = router.urls
 

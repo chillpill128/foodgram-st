@@ -3,10 +3,10 @@ from rest_framework import status
 from rest_framework.authtoken.views import ObtainAuthToken as drf_ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, mixins
 
 from .models import User, Subscription
 from .serializers import (
@@ -16,19 +16,22 @@ from .serializers import (
     PasswordChangeSerializer,
     GetTokenSerializer,
     AvatarUploadSerializer,
+    AvatarViewSerializer,
 )
 
 
-class UsersViewSet(ModelViewSet):
+class UsersViewSet(mixins.CreateModelMixin,
+                   mixins.RetrieveModelMixin,
+                   mixins.ListModelMixin,
+                   GenericViewSet):
     queryset = User.objects.all()
     serializer_class = UserViewSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]
     filterset_fields = []
 
     def get_serializer_class(self):
         if self.action == 'create':
             return UserAddSerializer
-        # А если запрошенное действие — не 'list', применяем CatSerializer
         return UserViewSerializer
 
     @action(detail=False, methods=['post'],
@@ -39,8 +42,9 @@ class UsersViewSet(ModelViewSet):
         user = request.user
 
         serializer = PasswordChangeSerializer(data=request.data)
-        if serializer.is_valid():
-            user.set_password(serializer.validated_data['password'])
+        if serializer.is_valid() and user.check_password(
+                serializer.validated_data['current_password']):
+            user.set_password(serializer.validated_data['new_password'])
             user.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
         else:
@@ -53,26 +57,34 @@ class UsersViewSet(ModelViewSet):
     def me(self, request):
         """Текущий пользователь"""
         instance = request.user
-        serializer = self.get_serializer(instance)
+        serializer = self.get_serializer(instance=instance)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['put'],
+    @action(detail=False, methods=['put', 'delete'],
             permission_classes=[IsAuthenticated],
-            url_path='me/avatar', url_name='me')
-    def me_upload_avatar(self, request):
-        """Загрузка аватара текущего пользователя"""
-        user = request.user
+            url_path='me/avatar', url_name='me-avatar')
+    def me_upload_or_delete_avatar(self, request):
+        """Загрузка или удаление аватара текущего пользователя"""
+        print('METHOD:', request.method)
+        if request.method == 'DELETE':
+            return self._delete_my_avatar(request)
+        elif request.method == 'PUT':
+            return self._upload_my_avatar(request)
+        else:
+            return Response({'detail': 'Метод не поддерживется'},
+                            status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-        serializer = AvatarUploadSerializer(data=request.data)
+    def _upload_my_avatar(self, request):
+        user = request.user
+        serializer = AvatarUploadSerializer(instance=user, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        resp_serializer = AvatarViewSerializer(instance=user,
+                                               context=self.get_serializer_context())
+        return Response(resp_serializer.data,
+                        status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['delete'],
-            permission_classes=[IsAuthenticated],
-            url_path='me/avatar', url_name='me')
-    def me_delete_avatar(self, request):
-        """Удаление аватара текущего пользователя"""
+    def _delete_my_avatar(self, request):
         user = request.user
         if user.avatar:
             os.remove(user.avatar.path)
@@ -97,21 +109,24 @@ class UsersViewSet(ModelViewSet):
             serializer = UserWithRecipesSerializer(page, many=True)
             return Response(serializer.data)
 
-    @action(detail=True, methods=['post'],
+    @action(detail=True, methods=['post', 'delete'],
             permission_classes=[IsAuthenticated],
-            url_path='subscribe', url_name='subscribe')
-    def subscribe(self, request, pk=None):
-        """Подписаться на пользователя"""
+            url_path='subscribe', url_name='subscribe-unsubscribe')
+    def subscribe_unsubscribe(self, request, pk=None):
+        """Подписаться или отписаться на пользователя"""
+        if request.method == 'post':
+            return self._subscribe(request, pk)
+        elif request.method == 'delete':
+            return self._unsubscribe(request, pk)
+
+    def _subscribe(self, request, pk):
         user = request.user
         author = self.get_object()
         Subscription.objects.get_or_create(author=author, follower=user)
         serializer = UserWithRecipesSerializer(instance=author)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['delete'],
-            permission_classes=[IsAuthenticated],
-            url_path='subscribe', url_name='unsubscribe')
-    def unsubscribe(self, request, pk=None):
+    def _unsubscribe(self, request, pk):
         """Отписаться от пользователя"""
         user = request.user
         author = self.get_object()
@@ -135,20 +150,18 @@ class ObtainAuthToken(drf_ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'auth_token': token.key,
-        })
+        return Response(self.serializer_class(instance=token).data)
 
 
 class RemoveAuthToken(APIView):
     """Удаление токена авторизации текущего пользователя"""
     def post(self, request, *args, **kwargs):
         user = request.user
-        if not user:
+        if not (user and user.is_authenticated and user.auth_token):
             return Response({
                     'detail': 'Учетные данные не были предоставлены.'
                 }, status=status.HTTP_401_UNAUTHORIZED)
-        Token.objects.delete(pk=user.auth_token.pk)
+        user.auth_token.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
