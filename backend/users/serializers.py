@@ -27,7 +27,7 @@ class UserViewSerializer(ModelSerializer):
 
 class UserAddSerializer(ModelSerializer):
     username = serializers.CharField(max_length=150, required=True,
-                                     validators=[RegexValidator,
+                                     validators=[RegexValidator(),
                                                  UniqueValidator(
                                          queryset=User.objects.all()
                                      )])
@@ -54,20 +54,33 @@ class UserAddSerializer(ModelSerializer):
 
 
 class UserWithRecipesSerializer(ModelSerializer):
-    recipes = RecipeShortenSerializer(many=True)
-    # recipes_count = serializers.IntegerField()
+    recipes_count = serializers.SerializerMethodField()
+    recipes = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['email', 'id', 'username', 'first_name',
-                  'last_name', 'is_subscribed', 'recipes', 'avatar']
+        fields = ['email', 'id', 'username', 'first_name', 'last_name',
+                  'is_subscribed', 'recipes', 'recipes_count', 'avatar']
 
     def get_avatar(self, obj):
         if obj.avatar:
             return self.context['request'].build_absolute_uri(obj.avatar.url)
         return None
 
+    def get_recipes_count(self, obj):
+        if hasattr(obj, 'recipes_count'):
+            return int(obj.recipes_count)
+        else:
+            return int(obj.recipes.count())
+
+    def get_recipes(self, obj):
+        if hasattr(obj, 'recipes_limited'):
+            recipes = obj.recipes_limited
+        else:
+            recipes = obj.recipes.all()
+        return RecipeShortenSerializer(instance=recipes, many=True,
+                                       context=self.context).data
 
 
 class PasswordChangeSerializer(Serializer):

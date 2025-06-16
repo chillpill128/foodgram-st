@@ -1,4 +1,5 @@
 import os
+from django.db.models import Prefetch, Subquery, OuterRef, Count
 from rest_framework import status
 from rest_framework.authtoken.views import ObtainAuthToken as drf_ObtainAuthToken
 from rest_framework.authtoken.models import Token
@@ -9,6 +10,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet, mixins
 
 from common.permissions import IsUserSelfOrCreateAndReadOnly
+from recipes.models import Recipe
 from .models import User, Subscription
 from .serializers import (
     UserViewSerializer,
@@ -101,8 +103,21 @@ class UsersViewSet(mixins.CreateModelMixin,
     def subscriptions(self, request):
         """Мои подписки"""
         user = request.user
+
+        recipes_limit = request.query_params.get('recipes_limit', None)
+
+        if recipes_limit:
+            limited_subq = (Recipe.objects.filter(author=OuterRef('author'))
+                .order_by('id').values('id')[:int(recipes_limit)])
+            qs = Recipe.objects.filter(id__in=Subquery(limited_subq))
+        else:
+            qs = Recipe.objects.all()
+
         queryset = (User.objects.filter(subscriptions_on_me__follower=user)
-            .prefetch_related('recipes'))
+            .prefetch_related(Prefetch(
+                'recipes',
+                queryset=qs,
+            )).annotate(recipes_count=Count('recipes')))
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = UserWithRecipesSerializer(page, many=True,
@@ -125,18 +140,21 @@ class UsersViewSet(mixins.CreateModelMixin,
                             status=status.HTTP_400_BAD_REQUEST)
 
         if request.method == 'POST':
-            return self._subscribe(user, author)
+            recipes_limit = request.query_params.get('recipes_limit', None)
+            return self._subscribe(user, author, recipes_limit)
         elif request.method == 'DELETE':
             return self._unsubscribe(user, author)
         else:
             return Response({'detail': 'Метод не поддерживается'},
                                                status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    def _subscribe(self, user, author):
+    def _subscribe(self, user, author, recipes_limit=None):
         if Subscription.objects.filter(author=author, follower=user).count() > 0:
             return Response({'detail': 'Вы уже подписаны на данного пользователя'},
                             status=status.HTTP_400_BAD_REQUEST)
         Subscription.objects.create(author=author, follower=user)
+        if recipes_limit:
+            author.recipes_limited = author.recipes.all()[:int(recipes_limit)]
         serializer = UserWithRecipesSerializer(instance=author,
                                                context=self.get_serializer_context())
         return Response(serializer.data, status=status.HTTP_201_CREATED)

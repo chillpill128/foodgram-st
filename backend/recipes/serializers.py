@@ -155,5 +155,5 @@ class RecipeShortLinkSerializer(ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if 'short_link' in data:
-            data['recipe-data'] = data.pop('short_link')
+            data['short-link'] = data.pop('short_link')
         return data

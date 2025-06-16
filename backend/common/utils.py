@@ -36,11 +36,12 @@ class Base64ImageField(serializers.ImageField):
 
 
 class RegexValidator:
-    def __init__(self, pattern=r'^[\w\S]+$', flags=re.IGNORECASE):
+    def __init__(self, pattern=r'^[\w+-.@]+$', flags=re.IGNORECASE):
         self.regex = re.compile(pattern, flags)
+        self.code = 'only_alphabet_or_digits_allowed'
 
     def __call__(self, value):
         if not isinstance(value, str) or not (self.regex.fullmatch(value)):
             message = f'Недопустимое значение: {value}'
-            raise serializers.ValidationError(message)
+            raise serializers.ValidationError(message, code=self.code)
 
