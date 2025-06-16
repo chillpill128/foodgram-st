@@ -11,6 +11,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
+from common.permissions import IsAuthorOrCreateAndReadOnly
 from .models import FavoriteRecipe, Ingredient, Recipe, ShoppingCart
 from .filters import RecipeFilterSet
 from .serializers import (
@@ -33,7 +34,7 @@ class RecipesViewSet(ModelViewSet):
     )
     serializer_class = RecipeViewSerializer
     filterset_class = RecipeFilterSet
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny, IsAuthorOrCreateAndReadOnly]
 
     def get_queryset(self):
         user = self.request.user
@@ -146,9 +147,9 @@ class RecipesViewSet(ModelViewSet):
         user = request.user
 
         if request.method == 'POST':
-            self._add_to_shopping_cart(recipe, user)
+            return self._add_to_shopping_cart(recipe, user)
         elif request.method == 'DELETE':
-            self._delete_from_shopping_cart(recipe, user)
+            return self._delete_from_shopping_cart(recipe, user)
         else:
             return Response({'detail': 'Метод не поддерживается'},
                             status=status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -159,7 +160,9 @@ class RecipesViewSet(ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         ShoppingCart.objects.get_or_create(user=user, recipe=recipe)
         return Response(
-            RecipeShortenSerializer(instance=recipe).data,
+            RecipeShortenSerializer(instance=recipe,
+                                    context=self.get_serializer_context()
+                                    ).data,
             status=status.HTTP_201_CREATED
         )
 
@@ -170,7 +173,7 @@ class RecipesViewSet(ModelViewSet):
                 user=user, recipe=recipe)
         except ShoppingCart.DoesNotExist:
             return Response({'detail': _('Рецепт не добавлен в список покупок')},
-                            status=status.HTTP_404_NOT_FOUND)
+                            status=status.HTTP_400_BAD_REQUEST)
 
         recipe_in_shopping_cart.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -178,7 +181,7 @@ class RecipesViewSet(ModelViewSet):
     @action(methods=['POST', 'DELETE'], detail=True,
             permission_classes=[IsAuthenticated],
             url_path='favorite', url_name='add-favorite')
-    def add_delete_to_favorite(self, request, pk=None):
+    def add_delete_favorite(self, request, pk=None):
         """Добавить рецепт в избранное"""
         try:
             recipe = Recipe.objects.get(pk=pk)
@@ -187,9 +190,9 @@ class RecipesViewSet(ModelViewSet):
                             status=status.HTTP_404_NOT_FOUND)
         user = request.user
         if request.method == 'POST':
-            self._add_to_favorite(recipe, user)
+            return self._add_to_favorite(recipe, user)
         elif request.method == 'DELETE':
-            self._delete_from_favorite(recipe, user)
+            return self._delete_from_favorite(recipe, user)
         else:
             return Response({'detail': 'Метод не поддерживается'},
                         status=status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -200,7 +203,9 @@ class RecipesViewSet(ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST)
         FavoriteRecipe.objects.create(user=user, recipe=recipe)
         return Response(
-            RecipeShortenSerializer(instance=recipe).data,
+            RecipeShortenSerializer(instance=recipe,
+                                    context=self.get_serializer_context()
+                                    ).data,
             status=status.HTTP_201_CREATED
         )
 
@@ -211,7 +216,7 @@ class RecipesViewSet(ModelViewSet):
                 user=user, recipe=recipe)
         except FavoriteRecipe.DoesNotExist:
             return Response({'detail': 'Рецепт ещё не добавлен в избранное'},
-                            status=status.HTTP_404_NOT_FOUND)
+                            status=status.HTTP_400_BAD_REQUEST)
 
         recipe_favorite.delete()
         return Response(

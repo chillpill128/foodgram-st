@@ -39,7 +39,7 @@ class RegexValidator:
     def __init__(self, pattern=r'^[\w\S]+$', flags=re.IGNORECASE):
         self.regex = re.compile(pattern, flags)
 
-    def validate(self, value):
+    def __call__(self, value):
         if not isinstance(value, str) or not (self.regex.fullmatch(value)):
             message = f'Недопустимое значение: {value}'
             raise serializers.ValidationError(message)

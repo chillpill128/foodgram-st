@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet, mixins
 
+from common.permissions import IsUserSelfOrCreateAndReadOnly
 from .models import User, Subscription
 from .serializers import (
     UserViewSerializer,
@@ -26,7 +27,7 @@ class UsersViewSet(mixins.CreateModelMixin,
                    GenericViewSet):
     queryset = User.objects.all()
     serializer_class = UserViewSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny, IsUserSelfOrCreateAndReadOnly]
     filterset_fields = []
 
     def get_serializer_class(self):
@@ -41,7 +42,8 @@ class UsersViewSet(mixins.CreateModelMixin,
         """Изменить пароль текущего пользователя"""
         user = request.user
 
-        serializer = PasswordChangeSerializer(data=request.data)
+        serializer = PasswordChangeSerializer(data=request.data,
+                                              context=self.get_serializer_context())
         if serializer.is_valid() and user.check_password(
                 serializer.validated_data['current_password']):
             user.set_password(serializer.validated_data['new_password'])
@@ -65,7 +67,6 @@ class UsersViewSet(mixins.CreateModelMixin,
             url_path='me/avatar', url_name='me-avatar')
     def me_upload_or_delete_avatar(self, request):
         """Загрузка или удаление аватара текущего пользователя"""
-        print('METHOD:', request.method)
         if request.method == 'DELETE':
             return self._delete_my_avatar(request)
         elif request.method == 'PUT':
@@ -76,7 +77,9 @@ class UsersViewSet(mixins.CreateModelMixin,
 
     def _upload_my_avatar(self, request):
         user = request.user
-        serializer = AvatarUploadSerializer(instance=user, data=request.data)
+        serializer = AvatarUploadSerializer(instance=user,
+                                            context=self.get_serializer_context(),
+                                            data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         resp_serializer = AvatarViewSerializer(instance=user,
@@ -98,7 +101,8 @@ class UsersViewSet(mixins.CreateModelMixin,
     def subscriptions(self, request):
         """Мои подписки"""
         user = request.user
-        queryset = user.subscriptions_my.all().prefetch_related('recipes')
+        queryset = (User.objects.filter(subscriptions_on_me__follower=user)
+            .prefetch_related('recipes'))
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = UserWithRecipesSerializer(page, many=True,
@@ -143,7 +147,7 @@ class UsersViewSet(mixins.CreateModelMixin,
             subscr = Subscription.objects.get(author=author, follower=user)
         except Subscription.DoesNotExist:
             return Response({'detail': 'Вы не подписаны на данного пользователя'},
-                            status=status.HTTP_404_NOT_FOUND)
+                            status=status.HTTP_400_BAD_REQUEST)
         subscr.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
