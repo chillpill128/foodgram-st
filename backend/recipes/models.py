@@ -28,6 +28,16 @@ class Recipe(models.Model):
     cooking_time = models.PositiveIntegerField(_('Время приготовления'))
     short_link = models.CharField(_('Короткая ссылка'), max_length=10,
                                   unique=True)
+    created_at = models.DateTimeField(_('Создан'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Изменён'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Рецепт')
+        verbose_name_plural = _('Рецепты')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_at']),
+        ]
 
     def _generate_short_link(self):
         for num in range(3, 10):
@@ -45,10 +55,6 @@ class Recipe(models.Model):
             self.short_link = self._generate_short_link()
         super().save(force_insert=force_insert, force_update=force_update,
                      using=using, update_fields=update_fields)
-
-    class Meta:
-        verbose_name = _('Рецепт')
-        verbose_name_plural = _('Рецепты')
 
 
 class RecipeIngredients(models.Model):

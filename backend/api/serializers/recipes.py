@@ -1,9 +1,9 @@
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
-from users.serializers import UserViewSerializer
+from .users import UserViewSerializer
 from common.utils import Base64ImageField
-from .models import Ingredient, Recipe, RecipeIngredients
+from recipes.models import Ingredient, Recipe, RecipeIngredients
 
 
 class IngredientSerializer(ModelSerializer):

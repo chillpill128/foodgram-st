@@ -1,0 +1,5 @@
+venv
+.git
+.gitkeep
+.env
+db.sqlite3

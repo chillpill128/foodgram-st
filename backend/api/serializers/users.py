@@ -4,9 +4,9 @@ from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework.validators import UniqueValidator
 from rest_framework import serializers
 
-from .models import User
+from users.models import User
 from common.utils import Base64ImageField, RegexValidator
-from recipes.serializers_short import RecipeShortenSerializer
+from .shorten import RecipeShortenSerializer
 
 
 class UserViewSerializer(ModelSerializer):

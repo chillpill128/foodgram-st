@@ -1,7 +1,7 @@
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
-from .models import Recipe
+from recipes.models import Recipe
 
 
 class RecipeShortenSerializer(ModelSerializer):

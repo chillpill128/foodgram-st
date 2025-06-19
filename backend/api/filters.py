@@ -1,10 +1,10 @@
 from django_filters import rest_framework as filters
 
-from .models import Recipe
+from recipes.models import Recipe
 
-"""Доступна фильтрация по избранному, автору и списку покупок."""
 
 class RecipeFilterSet(filters.FilterSet):
+    """Доступна фильтрация по избранному, автору и списку покупок."""
     is_favorited = filters.NumberFilter(method='filter_is_favorited')
     is_in_shopping_cart = filters.NumberFilter(method='filter_is_in_shopping_cart')
 
