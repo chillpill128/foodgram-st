@@ -1,95 +1,104 @@
 from django.db import models
 from django.conf import settings
-from django.utils.translation import gettext_lazy as _
+from django.core.validators import MinValueValidator
 
-from common.utils import generate_short_link, generate_random_short_link
+
+# from common.utils import generate_short_link, generate_random_short_link
 
 
 class Ingredient(models.Model):
-    name = models.CharField(_('Название'))
-    measurement_unit = models.CharField(_('единица измерения'))
+    name = models.CharField('Название')
+    measurement_unit = models.CharField('единица измерения')
 
     class Meta:
-        verbose_name = _('Ингридиент')
-        verbose_name_plural = _('Ингридиенты')
+        verbose_name = 'Ингридиент'
+        verbose_name_plural = 'Ингридиенты'
 
 
 class Recipe(models.Model):
-    author = models.ForeignKey(to=settings.AUTH_USER_MODEL,
+    author = models.ForeignKey(settings.AUTH_USER_MODEL,
                                on_delete=models.CASCADE,
-                               related_name='recipes')
-    ingredients = models.ManyToManyField(to=Ingredient,
-                                         related_name='recipes',
-                                         verbose_name=_('Ингридиенты'),
+                               verbose_name='Автор')
+    ingredients = models.ManyToManyField(Ingredient,
+                                         verbose_name='Ингридиенты',
                                          through='RecipeIngredients')
-    name = models.CharField(_('Название'), max_length=256)
-    image = models.ImageField(_('Картинка'))
-    text = models.TextField(_('Описание'))
-    cooking_time = models.PositiveIntegerField(_('Время приготовления'))
-    short_link = models.CharField(_('Короткая ссылка'), max_length=10,
-                                  unique=True)
-    created_at = models.DateTimeField(_('Создан'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Изменён'), auto_now=True)
+    name = models.CharField('Название', max_length=256)
+    image = models.ImageField('Картинка')
+    text = models.TextField('Описание')
+    cooking_time = models.PositiveIntegerField('Время приготовления',
+                                               validators=[MinValueValidator(1)])
+    # short_link = models.CharField('Короткая ссылка', max_length=10,
+    #                               unique=True)
+    created_at = models.DateTimeField('Создан', auto_now_add=True)
+    updated_at = models.DateTimeField('Изменён', auto_now=True)
 
     class Meta:
-        verbose_name = _('Рецепт')
-        verbose_name_plural = _('Рецепты')
-        ordering = ['-created_at']
+        default_related_name = 'recipes'
         indexes = [
             models.Index(fields=['created_at']),
         ]
+        ordering = ['-created_at']
+        verbose_name = 'Рецепт'
+        verbose_name_plural = 'Рецепты'
 
-    def _generate_short_link(self):
-        for num in range(3, 10):
-            short_link = generate_short_link(self.pk, num)
-            if not Recipe.objects.filter(short_link=short_link).exists():
-                return short_link
-        while True:
-            short_link = generate_random_short_link(10)
-            if not Recipe.objects.filter(short_link=short_link).exists():
-                return short_link
-
-    def save(self, force_insert=False, force_update=False,
-             using=None, update_fields=None):
-        if not self.short_link:
-            self.short_link = self._generate_short_link()
-        super().save(force_insert=force_insert, force_update=force_update,
-                     using=using, update_fields=update_fields)
+    # def _generate_short_link(self):
+    #     for num in range(3, 10):
+    #         short_link = generate_short_link(self.pk, num)
+    #         if not Recipe.objects.filter(short_link=short_link).exists():
+    #             return short_link
+    #     while True:
+    #         short_link = generate_random_short_link(10)
+    #         if not Recipe.objects.filter(short_link=short_link).exists():
+    #             return short_link
+    #
+    # def save(self, force_insert=False, force_update=False,
+    #          using=None, update_fields=None):
+    #     if not self.short_link:
+    #         self.short_link = self._generate_short_link()
+    #     super().save(force_insert=force_insert, force_update=force_update,
+    #                  using=using, update_fields=update_fields)
 
 
 class RecipeIngredients(models.Model):
-    recipe = models.ForeignKey(Recipe, related_name='recipeingredients',
-                               on_delete=models.CASCADE)
-    ingredient = models.ForeignKey(Ingredient, related_name='recipeingredients',
-                                   on_delete=models.CASCADE)
-    amount = models.PositiveIntegerField(_('Количество'), default=1)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE)
+    amount = models.PositiveIntegerField('Количество', default=1)
 
     class Meta:
-        unique_together = ['recipe', 'ingredient']
-        verbose_name = _('Ингридиент в рецепте')
-        verbose_name_plural = _('Ингридиенты в рецептах')
+        constraints = [models.UniqueConstraint(
+            fields=['recipe', 'ingredient'],
+            name='unique_recipe_ingredient_in_recipeingredients'
+        )]
+        default_related_name = 'recipeingredients'
+        verbose_name = 'Ингридиент в рецепте'
+        verbose_name_plural = 'Ингридиенты в рецептах'
 
 
 class ShoppingCart(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL,
-                             related_name='shopping_cart',
-                             on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, related_name='shopping_cart',
-                               on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
 
     class Meta:
-        unique_together = ['user', 'recipe']
-        verbose_name = _('Рецепт в корзине')
-        verbose_name_plural = _('Рецепты в корзине')
+        constraints = [models.UniqueConstraint(
+            fields=['user', 'recipe'],
+            name='unique_user_recipe_in_shopping_cart'
+        )]
+        default_related_name = 'shopping_carts'
+        verbose_name = 'Рецепт в корзине'
+        verbose_name_plural = 'Рецепты в корзине'
 
 
 class FavoriteRecipe(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='favorite',
                              on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, related_name='favorite',
+    recipe = models.ForeignKey(Recipe,
                                on_delete=models.CASCADE)
 
     class Meta:
-        unique_together = ['user', 'recipe']
-        verbose_name = _('Рецепт в избранном')
-        verbose_name_plural = _('Рецепты в избранном')
+        constraints = [models.UniqueConstraint(
+            fields=['user', 'recipe'],
+            name='unique_user_recipe_in_shopping_cart'
+        )]
+        default_related_name = 'favorites'
+        verbose_name = 'Рецепт в избранном'
+        verbose_name_plural = 'Рецепты в избранном'

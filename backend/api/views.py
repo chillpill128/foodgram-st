@@ -1,22 +1,17 @@
 import csv
 import os
-from django.http import HttpResponse
-from django.contrib.auth import get_user_model
+from django.http import HttpResponse, FileResponse
 from django.db.models import  Count, IntegerField, Q, OuterRef,Prefetch, Sum, Subquery
-from django.utils.translation import gettext_lazy as _
+from djoser.views import UserViewSet as djoser_UserViewSet
 from rest_framework import status
-from rest_framework.authtoken.views import ObtainAuthToken as drf_ObtainAuthToken
-from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.permissions import (
     AllowAny, IsAuthenticated
 )
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
-from rest_framework.views import APIView
-from rest_framework.viewsets import GenericViewSet, mixins
 
-from common.permissions import (
+from api.permissions import (
     IsAuthorOrCreateAndReadOnly, IsUserSelfOrCreateAndReadOnly
 )
 from recipes.models import FavoriteRecipe, Ingredient, Recipe, ShoppingCart
@@ -33,7 +28,6 @@ from .serializers.users import (
     UserAddSerializer,
     UserWithRecipesSerializer,
     PasswordChangeSerializer,
-    GetTokenSerializer,
     AvatarUploadSerializer,
     AvatarViewSerializer,
 )
@@ -119,6 +113,8 @@ class RecipesViewSet(ModelViewSet):
             amount=Sum('recipeingredients__amount'))
         )
 
+        response = FileResponse(filename='Покупки.txt')
+
         response = HttpResponse(
             content_type = 'text/csv',
             headers = {
@@ -127,7 +123,7 @@ class RecipesViewSet(ModelViewSet):
             })
 
         writer = csv.writer(response)
-        writer.writerow(['№', _('Название'), _('Количество'), _('Единица измерения')])
+        writer.writerow(['№', 'Название', 'Количество', 'Единица измерения'])
         for n, ing in enumerate(ingredients):
             writer.writerow([n, ing.name, ing.amount, ing.measurement_unit])
         return response
@@ -140,7 +136,7 @@ class RecipesViewSet(ModelViewSet):
         try:
             recipe = Recipe.objects.get(pk=pk)
         except Recipe.DoesNotExist:
-            return Response({'detail': _('Страница не найдена')},
+            return Response({'detail': 'Страница не найдена'},
                             status=status.HTTP_404_NOT_FOUND)
         return Response(RecipeShortLinkSerializer(
             instance=recipe,
@@ -156,7 +152,7 @@ class RecipesViewSet(ModelViewSet):
         try:
             recipe = Recipe.objects.get(pk=pk)
         except Recipe.DoesNotExist:
-            return Response({'detail': _('Страница не найдена')},
+            return Response({'detail': 'Страница не найдена'},
                             status=status.HTTP_404_NOT_FOUND)
         user = request.user
 
@@ -186,7 +182,7 @@ class RecipesViewSet(ModelViewSet):
             recipe_in_shopping_cart = ShoppingCart.objects.get(
                 user=user, recipe=recipe)
         except ShoppingCart.DoesNotExist:
-            return Response({'detail': _('Рецепт не добавлен в список покупок')},
+            return Response({'detail': 'Рецепт не добавлен в список покупок'},
                             status=status.HTTP_400_BAD_REQUEST)
 
         recipe_in_shopping_cart.delete()
@@ -200,7 +196,7 @@ class RecipesViewSet(ModelViewSet):
         try:
             recipe = Recipe.objects.get(pk=pk)
         except Recipe.DoesNotExist:
-            return Response({'detail': _('Рецепт не найден')},
+            return Response({'detail': 'Рецепт не найден'},
                             status=status.HTTP_404_NOT_FOUND)
         user = request.user
         if request.method == 'POST':
@@ -238,6 +234,7 @@ class RecipesViewSet(ModelViewSet):
         )
 
 
+
 class IngredientViewSet(ReadOnlyModelViewSet):
     """Ингридиенты"""
     queryset = Ingredient.objects.all()
@@ -249,10 +246,7 @@ class IngredientViewSet(ReadOnlyModelViewSet):
 
 
 
-class UsersViewSet(mixins.CreateModelMixin,
-                   mixins.RetrieveModelMixin,
-                   mixins.ListModelMixin,
-                   GenericViewSet):
+class UsersViewSet(djoser_UserViewSet):
     queryset = User.objects.all()
     serializer_class = UserViewSerializer
     permission_classes = [AllowAny, IsUserSelfOrCreateAndReadOnly]
@@ -266,7 +260,7 @@ class UsersViewSet(mixins.CreateModelMixin,
     @action(detail=False, methods=['POST'],
             permission_classes=[IsAuthenticated],
             url_path='set_password', url_name='set-password')
-    def set_password(self, request, *args, **kwargs):
+    def set_password(self, request):
         """Изменить пароль текущего пользователя"""
         user = request.user
 
@@ -281,14 +275,14 @@ class UsersViewSet(mixins.CreateModelMixin,
             return Response(serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['GET'],
-            permission_classes=[IsAuthenticated],
-            url_path='me', url_name='me')
-    def me(self, request):
-        """Текущий пользователь"""
-        instance = request.user
-        serializer = self.get_serializer(instance=instance)
-        return Response(serializer.data)
+    # @action(detail=False, methods=['GET'],
+    #         permission_classes=[IsAuthenticated],
+    #         url_path='me', url_name='me')
+    # def me(self, request):
+    #     """Текущий пользователь"""
+    #     instance = request.user
+    #     serializer = self.get_serializer(instance=instance)
+    #     return Response(serializer.data)
 
     @action(detail=False, methods=['PUT', 'DELETE'],
             permission_classes=[IsAuthenticated],
@@ -394,33 +388,3 @@ class UsersViewSet(mixins.CreateModelMixin,
                             status=status.HTTP_400_BAD_REQUEST)
         subscr.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class ObtainAuthToken(drf_ObtainAuthToken):
-    """Получение токена авторизации"""
-    serializer_class = GetTokenSerializer
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data,
-                                           context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
-        return Response(self.serializer_class(instance=token).data)
-
-
-class RemoveAuthToken(APIView):
-    """Удаление токена авторизации текущего пользователя"""
-    def post(self, request, *args, **kwargs):
-        user = request.user
-        if not (user and user.is_authenticated and user.auth_token):
-            return Response({
-                'detail': 'Учетные данные не были предоставлены.'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        user.auth_token.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-obtain_auth_token = ObtainAuthToken.as_view()
-remove_auth_token = RemoveAuthToken.as_view()
-

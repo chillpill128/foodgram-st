@@ -1,11 +1,11 @@
-from django.contrib.auth import authenticate
-from django.utils.translation import gettext_lazy as _
+# from django.contrib.auth import authenticate
+from django.core.validators import RegexValidator
 from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework.validators import UniqueValidator
 from rest_framework import serializers
 
 from users.models import User
-from common.utils import Base64ImageField, RegexValidator
+from .fields import Base64ImageField
 from .shorten import RecipeShortenSerializer
 
 
@@ -16,6 +16,7 @@ class UserViewSerializer(ModelSerializer):
         model = User
         fields = ['email', 'id', 'username', 'first_name',
                   'last_name', 'is_subscribed', 'avatar']
+        read_only_fields = fields
 
     def get_avatar(self, obj):
         if obj.avatar:
@@ -23,18 +24,16 @@ class UserViewSerializer(ModelSerializer):
         return None
 
 
-
-
 class UserAddSerializer(ModelSerializer):
     username = serializers.CharField(max_length=150, required=True,
-                                     validators=[RegexValidator(),
-                                                 UniqueValidator(
-                                         queryset=User.objects.all()
-                                     )])
+                                     validators=[
+                                         RegexValidator(regex=r'^[\w+-.@]+$'),
+                                         UniqueValidator(queryset=User.objects.all())
+                                     ])
     email = serializers.EmailField(max_length=254, required=True,
-                                   validators=[UniqueValidator(
-                                       queryset=User.objects.all()
-                                   )])
+                                   validators=[
+                                       UniqueValidator(queryset=User.objects.all())
+                                   ])
     first_name = serializers.CharField(max_length=150, required=True)
     last_name = serializers.CharField(max_length=150, required=True)
     password = serializers.CharField(max_length=128, write_only=True)
@@ -88,29 +87,29 @@ class PasswordChangeSerializer(Serializer):
     current_password = serializers.CharField(max_length=128)
 
 
-# Изменённая версия rest_framework.authtoken.serializers.AuthTokenSerializer
-# Вместо username используем email
-class GetTokenSerializer(Serializer):
-    password = serializers.CharField(max_length=128, write_only=True)
-    email = serializers.EmailField(max_length=150, write_only=True)
-    auth_token = serializers.CharField(source='key', read_only=True)
-
-    def validate(self, attrs):
-        email = attrs.get('email')
-        password = attrs.get('password')
-
-        if email and password:
-            user = authenticate(request=self.context.get('request'),
-                                email=email, password=password)
-            if not user:
-                msg = _('Unable to log in with provided credentials.')
-                raise serializers.ValidationError(msg, code='authorization')
-        else:
-            msg = _('Must include "username" and "password".')
-            raise serializers.ValidationError(msg, code='authorization')
-
-        attrs['user'] = user
-        return attrs
+# # Изменённая версия rest_framework.authtoken.serializers.AuthTokenSerializer
+# # Вместо username используем email
+# class GetTokenSerializer(Serializer):
+#     password = serializers.CharField(max_length=128, write_only=True)
+#     email = serializers.EmailField(max_length=150, write_only=True)
+#     auth_token = serializers.CharField(source='key', read_only=True)
+#
+#     def validate(self, attrs):
+#         email = attrs.get('email')
+#         password = attrs.get('password')
+#
+#         if email and password:
+#             user = authenticate(request=self.context.get('request'),
+#                                 email=email, password=password)
+#             if not user:
+#                 msg = 'Unable to log in with provided credentials.'
+#                 raise serializers.ValidationError(msg, code='authorization')
+#         else:
+#             msg = 'Must include "username" and "password".'
+#             raise serializers.ValidationError(msg, code='authorization')
+#
+#         attrs['user'] = user
+#         return attrs
 
 
 class AvatarUploadSerializer(ModelSerializer):
@@ -127,6 +126,7 @@ class AvatarViewSerializer(ModelSerializer):
     class Meta:
         model = User
         fields = ['avatar']
+        read_only_fields = fields
 
     def get_avatar(self, obj):
         if obj.avatar:

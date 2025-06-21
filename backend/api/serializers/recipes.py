@@ -2,7 +2,7 @@ from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
 from .users import UserViewSerializer
-from common.utils import Base64ImageField
+from .fields import Base64ImageField
 from recipes.models import Ingredient, Recipe, RecipeIngredients
 
 
@@ -12,7 +12,7 @@ class IngredientSerializer(ModelSerializer):
         fields = '__all__'
 
 
-class RecipeIngredientSerializer(ModelSerializer):
+class RecipeIngredientViewSerializer(ModelSerializer):
     id = serializers.ReadOnlyField(source='ingredient.id')
     name = serializers.ReadOnlyField(source='ingredient.name')
     measurement_unit = serializers.ReadOnlyField(
@@ -22,11 +22,12 @@ class RecipeIngredientSerializer(ModelSerializer):
     class Meta:
         model = RecipeIngredients
         fields = ['id', 'name', 'measurement_unit', 'amount']
+        read_only_fields = fields
 
 
 class RecipeViewSerializer(ModelSerializer):
     author = UserViewSerializer()
-    ingredients = RecipeIngredientSerializer(
+    ingredients = RecipeIngredientViewSerializer(
         source='recipeingredients', many=True, read_only=True
     )
     image = serializers.SerializerMethodField()
@@ -38,6 +39,7 @@ class RecipeViewSerializer(ModelSerializer):
         fields =  ['id', 'author', 'ingredients', 'is_favorited',
                    'is_in_shopping_cart', 'name', 'image', 'text',
                    'cooking_time']
+        read_only_fields = fields
 
     def get_image(self, obj):
         if obj.image:
