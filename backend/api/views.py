@@ -1,10 +1,11 @@
-import csv
+import io
 import os
-from django.http import HttpResponse, FileResponse
+from django.http import FileResponse
 from django.db.models import  Count, IntegerField, Q, OuterRef,Prefetch, Sum, Subquery
 from djoser.views import UserViewSet as djoser_UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import (
     AllowAny, IsAuthenticated
 )
@@ -14,8 +15,14 @@ from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from api.permissions import (
     IsAuthorOrCreateAndReadOnly, IsUserSelfOrCreateAndReadOnly
 )
-from recipes.models import FavoriteRecipe, Ingredient, Recipe, ShoppingCart
-from users.models import User, Subscription
+from recipes.models import (
+    FavoriteRecipe,
+    Ingredient,
+    Recipe,
+    ShoppingCart,
+    User,
+    Subscription
+)
 from .filters import RecipeFilterSet
 from .serializers.recipes import (
     IngredientSerializer,
@@ -54,8 +61,8 @@ class RecipesViewSet(ModelViewSet):
                     filter=Q(favorite__user=user),
                     output_field=IntegerField()
                 ),
-                is_in_shopping_cart=Count('shopping_cart__id',
-                                          filter=Q(shopping_cart__user=user),
+                is_in_shopping_cart=Count('shopping_carts__id',
+                                          filter=Q(shopping_carts__user=user),
                                           output_field=IntegerField()
                                           ))
             # print(queryset.query)
@@ -72,7 +79,7 @@ class RecipesViewSet(ModelViewSet):
 
         recipe = serializer.save()
         recipe.is_favorited = 1 if recipe.favorite.count() > 0 else 0
-        recipe.is_in_shopping_cart = 1 if recipe.shopping_cart.count() > 0 else 0
+        recipe.is_in_shopping_cart = 1 if recipe.shopping_carts.count() > 0 else 0
 
         headers = self.get_success_headers(serializer.data)
         serializer_resp = RecipeViewSerializer(
@@ -93,39 +100,32 @@ class RecipesViewSet(ModelViewSet):
         if getattr(recipe, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
         recipe.is_favorited = 1 if recipe.favorite.count() > 0 else 0
-        recipe.is_in_shopping_cart = 1 if recipe.shopping_cart.count() > 0 else 0
+        recipe.is_in_shopping_cart = 1 if recipe.shopping_carts.count() > 0 else 0
         serializer_resp = RecipeViewSerializer(
             instance=recipe,
             context=self.get_serializer_context()
         )
         return Response(serializer_resp.data)
 
-    @action(methods=['GET'], detail=False, permission_classes=[AllowAny],
+    @action(methods=['GET'], detail=False, permission_classes=[IsAuthenticated],
             url_path='download_shopping_cart', url_name='download-shopping-cart')
     def download_shopping_cart(self, request):
         """Скачать список покупок в csv-формате"""
-
-        user = request.user if request.user.is_authenticated else User.objects.first()
+        user = request.user
 
         ingredients = (Ingredient.objects.filter(
-            recipeingredients__recipe__shopping_cart__user=user
+            recipeingredients__recipe__shopping_carts__user=user
         ).order_by('name').distinct().annotate(
             amount=Sum('recipeingredients__amount'))
         )
 
-        response = FileResponse(filename='Покупки.txt')
-
-        response = HttpResponse(
-            content_type = 'text/csv',
-            headers = {
-                'Content-Disposition': 'attachment; filename="Покупки.csv"',
-                'Cache-Control': 'no-cache',
-            })
-
-        writer = csv.writer(response)
-        writer.writerow(['№', 'Название', 'Количество', 'Единица измерения'])
+        buffer = io.StringIO()
+        buffer.write(',\t'.join(['№', 'Название', 'Количество', 'Единица измерения']))
         for n, ing in enumerate(ingredients):
-            writer.writerow([n, ing.name, ing.amount, ing.measurement_unit])
+            buffer.write('\n'+',\t'.join([n, ing.name, ing.amount, ing.measurement_unit]))
+        response = FileResponse(buffer, filename='Покупки.txt', as_attachment=True)
+        response['Content-Type'] = 'text/plain'
+
         return response
 
     @action(methods=['GET'], detail=True,
@@ -133,11 +133,8 @@ class RecipesViewSet(ModelViewSet):
             url_path='get-link', url_name='get-short-link')
     def get_link(self, request, pk=None):
         """Получить короткую ссылку"""
-        try:
-            recipe = Recipe.objects.get(pk=pk)
-        except Recipe.DoesNotExist:
-            return Response({'detail': 'Страница не найдена'},
-                            status=status.HTTP_404_NOT_FOUND)
+        recipe = get_object_or_404(Recipe, pk=pk)
+
         return Response(RecipeShortLinkSerializer(
             instance=recipe,
             context=self.get_serializer_context()

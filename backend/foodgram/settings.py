@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'djoser',
     'django_filters',
-    'users',
     'recipes',
     'api',
 ]
@@ -92,7 +91,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-AUTH_USER_MODEL = 'users.User'
+AUTH_USER_MODEL = 'recipes.User'
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -120,7 +119,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'common.pagination.CustomPageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.CustomPageNumberPagination',
     'DEFAULT_FILTER_BACKENDS': [
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
@@ -138,3 +137,5 @@ DJOSER = {
     # },
     'TOKEN_MODEL': 'rest_framework.authtoken.models.Token',
 }
+
+RECIPE_SHORT_LINK_BASE = '/s/'

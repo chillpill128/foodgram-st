@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-from api.utils import generate_random_short_link
+from api.utils import generate_random_string
 
 
 class Migration(migrations.Migration):
@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='recipe',
             name='short_link',
-            field=models.CharField(default=generate_random_short_link,
+            field=models.CharField(default=generate_random_string,
                                    max_length=10,
                                    unique=True,
                                    verbose_name='Короткая ссылка'),

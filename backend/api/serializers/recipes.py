@@ -1,9 +1,11 @@
-from rest_framework.serializers import ModelSerializer
+from django.conf import settings
+from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
-from .users import UserViewSerializer
-from .fields import Base64ImageField
 from recipes.models import Ingredient, Recipe, RecipeIngredients
+from api.utils import shorten_url
+from .fields import Base64ImageField
+from .users import UserViewSerializer
 
 
 class IngredientSerializer(ModelSerializer):
@@ -83,12 +85,12 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Ингредиенты должны существовать.')
         return value
 
-    def validate(self, attrs):
-        recipeingredients = attrs.get('recipeingredients', None)
-        if not recipeingredients:
-            raise serializers.ValidationError('Отсутствуют ингредиенты')
-        self.validate_recipeingredients(recipeingredients)
-        return attrs
+    # def validate(self, attrs):
+    #     recipeingredients = attrs.get('recipeingredients', None)
+    #     if not recipeingredients:
+    #         raise serializers.ValidationError('Отсутствуют ингредиенты')
+    #     self.validate_recipeingredients(recipeingredients)
+    #     return attrs
 
     def create(self, validated_data):
         ingredients_data = validated_data.pop('recipeingredients', None)
@@ -144,15 +146,12 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         return instance
 
 
-class RecipeShortLinkSerializer(ModelSerializer):
+class RecipeShortLinkSerializer(Serializer):
     short_link = serializers.SerializerMethodField()
 
-    class Meta:
-        model = Recipe
-        fields = ['short_link']
-
     def get_short_link(self, obj):
-        return self.context['request'].build_absolute_uri(f'/s/{obj.short_link}')
+        short_link = shorten_url(obj.pk, settings.RECIPE_SHORT_LINK_BASE)
+        return self.context['request'].build_absolute_uri(short_link)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

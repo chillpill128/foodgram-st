@@ -1,10 +1,9 @@
-# from django.contrib.auth import authenticate
 from django.core.validators import RegexValidator
 from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework.validators import UniqueValidator
 from rest_framework import serializers
 
-from users.models import User
+from recipes.models import User
 from .fields import Base64ImageField
 from .shorten import RecipeShortenSerializer
 
