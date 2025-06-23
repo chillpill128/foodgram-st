@@ -35,13 +35,10 @@ def shorten_url(object_id, short_url_base):
     """Создаёт короткую ссылку из id объекта"""
     short_code = encode_base62(object_id)
     short_url_base = short_url_base.rstrip('/')
-    return f'{short_url_base}/{short_code}/'
+    return f'/{short_url_base}/{short_code}/'
 
 
-def restore_url(short_url, full_url_base):
+def get_pk_from_short_code(short_code):
     """Восстанавливает полный URL из короткой ссылки."""
-    short_code = short_url.split('/')[-1]
-    object_id = decode_base62(short_code)
-    full_url_base = full_url_base.rstrip('/')
-    return f'{full_url_base}/{object_id}/'
+    return decode_base62(short_code)
 

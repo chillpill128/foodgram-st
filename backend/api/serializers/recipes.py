@@ -3,9 +3,9 @@ from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
 from recipes.models import Ingredient, Recipe, RecipeIngredients
-from api.utils import shorten_url
+from recipes.utils import shorten_url
 from .fields import Base64ImageField
-from .users import UserViewSerializer
+from .users import UserSerializer
 
 
 class IngredientSerializer(ModelSerializer):
@@ -28,7 +28,7 @@ class RecipeIngredientViewSerializer(ModelSerializer):
 
 
 class RecipeViewSerializer(ModelSerializer):
-    author = UserViewSerializer()
+    author = UserSerializer()
     ingredients = RecipeIngredientViewSerializer(
         source='recipeingredients', many=True, read_only=True
     )
@@ -61,21 +61,16 @@ class RecipeIngredientAddSerializer(serializers.Serializer):
 
 
 class RecipeChangeSerializer(serializers.ModelSerializer):
-    ingredients = RecipeIngredientAddSerializer(many=True, source='recipeingredients',
-                                                required=True)
+    ingredients = RecipeIngredientAddSerializer(
+        many=True, source='recipeingredients', required=True
+    )
     image = Base64ImageField(required=True)
 
     class Meta:
         model = Recipe
         fields = ('ingredients', 'image', 'name', 'text', 'cooking_time')
-        extra_kwargs = {
-            'name': {'required': True},
-            'text': {'required': True},
-            'ingredients': {'required': True},
-            'cooking_time': {'required': True, 'min_value': 1}
-        }
 
-    def validate_recipeingredients(self, value):
+    def validate_ingredients(self, value):
         ids = [item['id'] for item in value]
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError('Ингредиенты не должны повторяться.')
@@ -85,29 +80,28 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Ингредиенты должны существовать.')
         return value
 
-    # def validate(self, attrs):
-    #     recipeingredients = attrs.get('recipeingredients', None)
-    #     if not recipeingredients:
-    #         raise serializers.ValidationError('Отсутствуют ингредиенты')
-    #     self.validate_recipeingredients(recipeingredients)
-    #     return attrs
+    def validate(self, attrs):
+        recipeingredients = attrs.get('recipeingredients', None)
+        if not recipeingredients:
+            raise serializers.ValidationError('Отсутствуют ингредиенты')
+        self.validate_ingredients(recipeingredients)
+        return attrs
 
     def create(self, validated_data):
         ingredients_data = validated_data.pop('recipeingredients', None)
-        author = self.context['request'].user
-        recipe = Recipe.objects.create(author=author, **validated_data)
+        validated_data['author'] = self.context['request'].user
+        recipe = super().create(validated_data)
 
-        for ingredient in ingredients_data:
-            RecipeIngredients.objects.create(
-                recipe=recipe,
-                ingredient_id=ingredient['id'],
-                amount=ingredient['amount']
-            )
+        ingredients = [RecipeIngredients(
+            recipe=recipe,
+            ingredient_id=ingredient['id'],
+            amount=ingredient['amount']
+        ) for ingredient in ingredients_data]
+        RecipeIngredients.objects.bulk_create(ingredients)
         return recipe
 
     def update(self, instance, validated_data):
         recipeingredients_data = validated_data.pop('recipeingredients', [])
-
         instance = super().update(instance, validated_data)
 
         recipeingredients_db = RecipeIngredients.objects.filter(recipe=instance)
@@ -150,7 +144,7 @@ class RecipeShortLinkSerializer(Serializer):
     short_link = serializers.SerializerMethodField()
 
     def get_short_link(self, obj):
-        short_link = shorten_url(obj.pk, settings.RECIPE_SHORT_LINK_BASE)
+        short_link = shorten_url(obj.pk, settings.RECIPE_SHORT_LINK_BASE_PATH)
         return self.context['request'].build_absolute_uri(short_link)
 
     def to_representation(self, instance):

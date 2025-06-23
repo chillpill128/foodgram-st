@@ -15,6 +15,7 @@ class User(AbstractUser):
     authors = models.ManyToManyField('self', verbose_name='Авторы',
                                      related_name='followers',
                                      through='Subscription',
+                                     symmetrical=False,
                                      through_fields=('follower', 'author'))
 
     class Meta:
@@ -23,8 +24,7 @@ class User(AbstractUser):
         verbose_name_plural = 'Пользователи'
 
     def __str__(self):
-        return f'{self.first_name} {self.last_name}' + \
-               f' (email: {self.email} Ник: {self.username})'
+        return f'{self.first_name} {self.last_name} ({self.email})'
 
 
 class Subscription(models.Model):

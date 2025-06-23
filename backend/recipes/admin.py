@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.utils.safestring import mark_safe
+from django.db.models import Count
 
 from .models import (
     Recipe, RecipeIngredients, Ingredient, ShoppingCart,
@@ -34,9 +36,44 @@ class RecipeIngredientInlineAdmin(admin.TabularInline):
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    list_display = ['pk', 'author', 'name', 'text', 'cooking_time']
-    readonly_fields = ['pk']
+    list_display = [
+        'pk', 'name', 'cooking_time', 'author',
+        'favorites_count', 'ingredients_list', 'image_preview'
+    ]
+    list_display_links = ['pk', 'name']
+    readonly_fields = ['pk', 'image_preview']
     inlines = [RecipeIngredientInlineAdmin]
+    list_select_related = ['author']
+    list_filter = ['author', 'cooking_time']
+    search_fields = ['name', 'ingredients__name']
+    ordering = ['-created_at']
+    sortable_by = ['pk', 'name', 'cooking_time', 'author']
+
+    def get_queryset(self, request):
+        recipes_qs = super().get_queryset(request)
+        recipes_qs = recipes_qs.annotate(
+            _favorites_count=Count('favorites', distinct=True)
+        )
+        return recipes_qs
+
+    @mark_safe
+    def ingredients_list(self, obj):
+        ingredients = obj.ingredients.all()
+        items = [f"<li>{ingredient.name}</li>" for ingredient in ingredients]
+        return f"<ul>{''.join(items)}</ul>"
+    ingredients_list.short_description = 'Ингредиенты'
+
+    @mark_safe
+    def image_preview(self, obj):
+        if obj.image:
+            return f'<img src="{obj.image.url}" style="max-height: 100px; max-width: 130px;" />'
+        return 'Нету'
+    image_preview.short_description = 'Превью'
+
+    def favorites_count(self, obj):
+        return obj._favorites_count
+    favorites_count.admin_order_field = '_favorites_count'
+    favorites_count.short_description = 'В избранном'
 
 
 @admin.register(ShoppingCart)

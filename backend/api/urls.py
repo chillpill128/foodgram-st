@@ -1,4 +1,4 @@
-from djoser.urls.authtoken import urlpatterns as djoser_authtoken_urlpatterns
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
@@ -14,4 +14,6 @@ router.register('users', UsersViewSet, basename='user')
 
 
 urlpatterns = router.urls
-urlpatterns += djoser_authtoken_urlpatterns
+urlpatterns += [
+    path('auth/', include('djoser.urls.authtoken')),
+]

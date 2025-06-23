@@ -96,7 +96,7 @@ AUTH_USER_MODEL = 'recipes.User'
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 LANGUAGE_CODE = 'ru-RU'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True
 USE_TZ = True
 
@@ -130,12 +130,26 @@ REST_FRAMEWORK = {
 DJOSER = {
     'LOGIN_FIELD': 'email',
     'USER_CREATE_PASSWORD_RETYPE': False,
-    # 'SERIALIZERS': {
-    #     'user_create': 'api.serializers.user.UserCreateSerializer',
-    #     'user': 'api.serializers.user.UserSerializer',
-    #     'current_user': 'api.serializers.user.UserSerializer',
-    # },
+    'HIDE_USERS': False,
+    'SERIALIZERS': {
+        'user_create': 'api.serializers.users.UserCreateSerializer',
+        'user': 'api.serializers.users.UserSerializer',
+        'current_user': 'api.serializers.users.UserSerializer',
+    },
     'TOKEN_MODEL': 'rest_framework.authtoken.models.Token',
+    'PERMISSIONS': {
+        'user_list': ['rest_framework.permissions.AllowAny'],
+        'user': [
+            # 'rest_framework.permissions.AllowAny',
+            'djoser.permissions.CurrentUserOrAdminOrReadOnly'
+        ],
+        'user_delete': ['rest_framework.permissions.IsAdminUser'],
+        'username_reset': ['rest_framework.permissions.IsAdminUser'],
+        'username_reset_confirm': ['rest_framework.permissions.IsAdminUser'],
+        'set_username': ['rest_framework.permissions.IsAdminUser'],
+        'password_reset': ['rest_framework.permissions.IsAdminUser'],
+        'password_reset_confirm': ['rest_framework.permissions.IsAdminUser'],
+    },
 }
 
-RECIPE_SHORT_LINK_BASE = '/s/'
+RECIPE_SHORT_LINK_BASE_PATH = 's/'

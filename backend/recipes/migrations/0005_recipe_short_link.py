@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-from api.utils import generate_random_string
+from recipes.utils import generate_random_string
 
 
 class Migration(migrations.Migration):

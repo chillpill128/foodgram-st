@@ -1,4 +1,8 @@
 from django.core.validators import RegexValidator
+from djoser.serializers import (
+    UserSerializer as djoser_UserSerializer,
+    UserCreateSerializer as djoser_UserCreateSerializer
+)
 from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework.validators import UniqueValidator
 from rest_framework import serializers
@@ -8,22 +12,33 @@ from .fields import Base64ImageField
 from .shorten import RecipeShortenSerializer
 
 
-class UserViewSerializer(ModelSerializer):
+class BaseUserSerializer(djoser_UserSerializer):
     avatar = serializers.SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = ['email', 'id', 'username', 'first_name',
-                  'last_name', 'is_subscribed', 'avatar']
-        read_only_fields = fields
+    is_subscribed = serializers.SerializerMethodField()
 
     def get_avatar(self, obj):
         if obj.avatar:
             return self.context['request'].build_absolute_uri(obj.avatar.url)
         return None
 
+    def get_is_subscribed(self, obj):
+        user = self.context['request'].user
+        if not user.is_authenticated:
+            return False
+        elif hasattr(obj, 'is_subscribed'):
+            return bool(obj.is_subscribed)
+        else:
+            return user.followers.filter(pk=obj.pk).exists()
 
-class UserAddSerializer(ModelSerializer):
+
+class UserSerializer(BaseUserSerializer):
+    class Meta:
+        model = User
+        fields = ['email', 'id', 'username', 'first_name',
+                  'last_name', 'is_subscribed', 'avatar']
+
+
+class UserCreateSerializer(djoser_UserCreateSerializer):
     username = serializers.CharField(max_length=150, required=True,
                                      validators=[
                                          RegexValidator(regex=r'^[\w+-.@]+$'),
@@ -43,28 +58,15 @@ class UserAddSerializer(ModelSerializer):
                   'last_name', 'password']
         read_only_fields = ['id']
 
-    def create(self, validated_data):
-        password = validated_data.pop('password')
-        user = super().create(validated_data)
-        user.set_password(password)
-        user.save()
-        return user
 
-
-class UserWithRecipesSerializer(ModelSerializer):
+class UserWithRecipesSerializer(BaseUserSerializer):
     recipes_count = serializers.SerializerMethodField()
     recipes = serializers.SerializerMethodField()
-    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['email', 'id', 'username', 'first_name', 'last_name',
                   'is_subscribed', 'recipes', 'recipes_count', 'avatar']
-
-    def get_avatar(self, obj):
-        if obj.avatar:
-            return self.context['request'].build_absolute_uri(obj.avatar.url)
-        return None
 
     def get_recipes_count(self, obj):
         if hasattr(obj, 'recipes_count'):
@@ -79,36 +81,6 @@ class UserWithRecipesSerializer(ModelSerializer):
             recipes = obj.recipes.all()
         return RecipeShortenSerializer(instance=recipes, many=True,
                                        context=self.context).data
-
-
-class PasswordChangeSerializer(Serializer):
-    new_password = serializers.CharField(max_length=128)
-    current_password = serializers.CharField(max_length=128)
-
-
-# # Изменённая версия rest_framework.authtoken.serializers.AuthTokenSerializer
-# # Вместо username используем email
-# class GetTokenSerializer(Serializer):
-#     password = serializers.CharField(max_length=128, write_only=True)
-#     email = serializers.EmailField(max_length=150, write_only=True)
-#     auth_token = serializers.CharField(source='key', read_only=True)
-#
-#     def validate(self, attrs):
-#         email = attrs.get('email')
-#         password = attrs.get('password')
-#
-#         if email and password:
-#             user = authenticate(request=self.context.get('request'),
-#                                 email=email, password=password)
-#             if not user:
-#                 msg = 'Unable to log in with provided credentials.'
-#                 raise serializers.ValidationError(msg, code='authorization')
-#         else:
-#             msg = 'Must include "username" and "password".'
-#             raise serializers.ValidationError(msg, code='authorization')
-#
-#         attrs['user'] = user
-#         return attrs
 
 
 class AvatarUploadSerializer(ModelSerializer):
@@ -131,3 +103,29 @@ class AvatarViewSerializer(ModelSerializer):
         if obj.avatar:
             return self.context['request'].build_absolute_uri(obj.avatar.url)
         return None
+
+
+# Не отлавливает момент, когда в поле avatar передана пустая картинка
+# class AvatarSerializer(ModelSerializer):
+#     avatar = serializers.SerializerMethodField()
+#
+#     class Meta:
+#         model = User
+#         fields = ['avatar']
+#         extra_kwargs = {
+#             'avatar': {
+#                 'write_only': True,
+#                 'required': True,
+#             }
+#         }
+#
+#     def get_avatar(self, obj):
+#         if obj.avatar:
+#             return self.context['request'].build_absolute_uri(obj.avatar.url)
+#         return None
+#
+#     def to_internal_value(self, data):
+#         internal_value = super().to_internal_value(data)
+#         internal_value['avatar'] = Base64ImageField(required=True) \
+#                                     .to_internal_value(data.get('avatar'))
+#         return internal_value
