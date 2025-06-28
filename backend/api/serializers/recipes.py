@@ -1,4 +1,5 @@
 from django.conf import settings
+from rest_framework.generics import get_object_or_404
 from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
@@ -32,7 +33,7 @@ class RecipeViewSerializer(ModelSerializer):
     ingredients = RecipeIngredientViewSerializer(
         source='recipeingredients', many=True, read_only=True
     )
-    image = serializers.SerializerMethodField()
+    image = serializers.ImageField()
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
 
@@ -42,11 +43,6 @@ class RecipeViewSerializer(ModelSerializer):
                    'is_in_shopping_cart', 'name', 'image', 'text',
                    'cooking_time']
         read_only_fields = fields
-
-    def get_image(self, obj):
-        if obj.image:
-            return self.context['request'].build_absolute_uri(obj.image.url)
-        return None
 
     def get_is_favorited(self, obj):
         return bool(hasattr(obj, 'is_favorited') and obj.is_favorited)
@@ -58,6 +54,11 @@ class RecipeViewSerializer(ModelSerializer):
 class RecipeIngredientAddSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     amount = serializers.IntegerField(min_value=1)
+
+    def validate(self, attrs):
+        if not Ingredient.objects.filter(pk=attrs['id']).exists():
+            raise serializers.ValidationError(f'Ингредиент с id={attrs["id"]} не существует.')
+        return attrs
 
 
 class RecipeChangeSerializer(serializers.ModelSerializer):
@@ -74,10 +75,6 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         ids = [item['id'] for item in value]
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError('Ингредиенты не должны повторяться.')
-        ids_from_db = set(Ingredient.objects.filter(id__in=ids)
-                          .values_list('id', flat=True))
-        if set(ids) != ids_from_db:
-            raise serializers.ValidationError('Ингредиенты должны существовать.')
         return value
 
     def validate(self, attrs):
@@ -88,56 +85,26 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        ingredients_data = validated_data.pop('recipeingredients', None)
+        recipeingredients = validated_data.pop('recipeingredients', None)
         validated_data['author'] = self.context['request'].user
         recipe = super().create(validated_data)
-
-        ingredients = [RecipeIngredients(
-            recipe=recipe,
-            ingredient_id=ingredient['id'],
-            amount=ingredient['amount']
-        ) for ingredient in ingredients_data]
-        RecipeIngredients.objects.bulk_create(ingredients)
+        self.set_recipe_ingredients(recipe, recipeingredients)
         return recipe
 
     def update(self, instance, validated_data):
-        recipeingredients_data = validated_data.pop('recipeingredients', [])
+        recipeingredients = validated_data.pop('recipeingredients', [])
         instance = super().update(instance, validated_data)
-
-        recipeingredients_db = RecipeIngredients.objects.filter(recipe=instance)
-
-        ids_data = set(item['id'] for item in recipeingredients_data)
-        ids_db = set(item.ingredient_id for item in recipeingredients_db)
-
-        ids_to_add = ids_data - ids_db
-        ids_to_del = ids_db - ids_data
-        ids_to_check = ids_data & ids_db
-
-        ids_amounts = {item['id']: item['amount']
-                      for item in recipeingredients_data}
-
-        # Добавляем в БД записи, которых там ещё нет:
-        recipeingredients = []
-        for id in ids_to_add:
-            amount = ids_amounts[id]
-            item = RecipeIngredients(
-                recipe=instance, ingredient_id=id, amount=amount
-            )
-            recipeingredients.append(item)
-        RecipeIngredients.objects.bulk_create(recipeingredients)
-
-        # Разбираемся с удалением и изменением имеющихся в бд записей:
-        recipeingredients = []
-        for item in recipeingredients_db:
-            if item.ingredient_id in ids_to_del:
-                item.delete()
-            if (item.ingredient_id in ids_to_check and
-                    item.amount != ids_amounts[item.ingredient_id]):
-                item.amount = ids_amounts[item.ingredient_id]
-                recipeingredients.append(item)
-        RecipeIngredients.objects.bulk_update(recipeingredients, ['amount'])
-
+        self.set_recipe_ingredients(instance, recipeingredients)
         return instance
+
+    def set_recipe_ingredients(self, recipe, recipeingredients):
+        recipe.recipeingredients.all().delete()
+        ingredients = [RecipeIngredients(
+            recipe=recipe,
+            ingredient_id=recipe_ingredient['id'],
+            amount=recipe_ingredient['amount']
+        ) for recipe_ingredient in recipeingredients]
+        RecipeIngredients.objects.bulk_create(ingredients)
 
 
 class RecipeShortLinkSerializer(Serializer):

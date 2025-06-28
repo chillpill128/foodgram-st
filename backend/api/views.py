@@ -338,9 +338,9 @@ class UsersViewSet(djoser_UserViewSet):
 
         if request.method == 'DELETE':
             return self._unsubscribe(user, author)
-        else:
-            recipes_limit = request.query_params.get('recipes_limit', None)
-            return self._subscribe(user, author, recipes_limit)
+
+        recipes_limit = request.query_params.get('recipes_limit', None)
+        return self._subscribe(user, author, recipes_limit)
 
     def _subscribe(self, user, author, recipes_limit=None):
         if user == author:

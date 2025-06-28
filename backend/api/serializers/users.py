@@ -12,14 +12,15 @@ from .fields import Base64ImageField
 from .shorten import RecipeShortenSerializer
 
 
-class BaseUserSerializer(djoser_UserSerializer):
-    avatar = serializers.SerializerMethodField()
+class UserSerializer(djoser_UserSerializer):
+    avatar = serializers.ImageField()
     is_subscribed = serializers.SerializerMethodField()
 
-    def get_avatar(self, obj):
-        if obj.avatar:
-            return self.context['request'].build_absolute_uri(obj.avatar.url)
-        return None
+    class Meta:
+        model = User
+        fields = ['email', 'id', 'username', 'first_name',
+              'last_name', 'is_subscribed', 'avatar']
+        read_only_fields = fields
 
     def get_is_subscribed(self, obj):
         user = self.context['request'].user
@@ -29,13 +30,6 @@ class BaseUserSerializer(djoser_UserSerializer):
             return bool(obj.is_subscribed)
         else:
             return user.followers.filter(pk=obj.pk).exists()
-
-
-class UserSerializer(BaseUserSerializer):
-    class Meta:
-        model = User
-        fields = ['email', 'id', 'username', 'first_name',
-                  'last_name', 'is_subscribed', 'avatar']
 
 
 class UserCreateSerializer(djoser_UserCreateSerializer):
@@ -54,12 +48,11 @@ class UserCreateSerializer(djoser_UserCreateSerializer):
 
     class Meta:
         model = User
-        fields = ['email', 'id', 'username', 'first_name',
-                  'last_name', 'password']
+        fields = ['email', 'id', 'username', 'first_name', 'last_name', 'password']
         read_only_fields = ['id']
 
 
-class UserWithRecipesSerializer(BaseUserSerializer):
+class UserWithRecipesSerializer(UserSerializer):
     recipes_count = serializers.SerializerMethodField()
     recipes = serializers.SerializerMethodField()
 
@@ -67,12 +60,13 @@ class UserWithRecipesSerializer(BaseUserSerializer):
         model = User
         fields = ['email', 'id', 'username', 'first_name', 'last_name',
                   'is_subscribed', 'recipes', 'recipes_count', 'avatar']
+        read_only_fields = fields
 
     def get_recipes_count(self, obj):
         if hasattr(obj, 'recipes_count'):
-            return int(obj.recipes_count)
+            return obj.recipes_count
         else:
-            return int(obj.recipes.count())
+            return obj.recipes.count()
 
     def get_recipes(self, obj):
         if hasattr(obj, 'recipes_limited'):
@@ -92,17 +86,12 @@ class AvatarUploadSerializer(ModelSerializer):
 
 
 class AvatarViewSerializer(ModelSerializer):
-    avatar = serializers.SerializerMethodField()
+    avatar = serializers.ImageField()
 
     class Meta:
         model = User
         fields = ['avatar']
         read_only_fields = fields
-
-    def get_avatar(self, obj):
-        if obj.avatar:
-            return self.context['request'].build_absolute_uri(obj.avatar.url)
-        return None
 
 
 # Не отлавливает момент, когда в поле avatar передана пустая картинка
