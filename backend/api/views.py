@@ -1,6 +1,6 @@
-import io
 import os
 import datetime
+from django.conf import settings
 from django.http import FileResponse
 from django.db.models import  BooleanField, Count, Q, OuterRef, Prefetch, Sum, Subquery
 from djoser.views import UserViewSet as djoser_UserViewSet
@@ -8,14 +8,12 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import (
-    AllowAny, IsAuthenticated
+    AllowAny, IsAuthenticated, IsAdminUser
 )
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from api.permissions import (
-    IsAuthorOrCreateAndReadOnly, IsUserSelfOrCreateAndReadOnly
-)
+from api.permissions import IsAuthor
 from recipes.models import (
     FavoriteRecipe,
     Ingredient,
@@ -24,12 +22,12 @@ from recipes.models import (
     User,
     Subscription
 )
+from recipes.utils import shorten_url
 from .filters import RecipeFilterSet
 from .serializers.recipes import (
     IngredientSerializer,
     RecipeViewSerializer,
     RecipeChangeSerializer,
-    RecipeShortLinkSerializer,
 )
 from .serializers.users import (
     UserSerializer,
@@ -48,7 +46,15 @@ class RecipesViewSet(ModelViewSet):
     )
     serializer_class = RecipeViewSerializer
     filterset_class = RecipeFilterSet
-    permission_classes = [AllowAny, IsAuthorOrCreateAndReadOnly]
+    permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsAuthenticated()]
+        elif self.action in ('destroy', 'update'):
+            return [IsAuthor, IsAdminUser]
+
+        return super().get_permissions()
 
     def get_queryset(self):
         user = self.request.user
@@ -122,25 +128,21 @@ class RecipesViewSet(ModelViewSet):
             .order_by('name')
         current_date = datetime.datetime.now().strftime('%d.%m.%Y')
 
-        buffer = io.StringIO()
-        buffer.write('\n'.join([
+        output_text = '\n'.join([
             f'Список продуктов. Сформирован {current_date}',
-            ',\t'.join(['№', 'Название', 'Количество', 'Единица измерения']),
+            '№,\tНазвание,\tКоличество,\tЕдиница измерения'
             '\n'.join([
-                ',\t'.join(
-                    [str(n), ing.name.capitalize(), str(ing.amount),
-                     str(ing.measurement_unit)])
+                f'{n+1},\t{ing.name.capitalize()},\t{ing.amount},\t{ing.measurement_unit}'
                 for n, ing in enumerate(ingredients)
             ]),
-            'Список рецептов, для которых эти продукты:',
-            ',\t'.join(['№', 'Название', 'Автор']),
+            '\nСписок рецептов, для которых эти продукты:',
+            '№,\tНазвание,\tАвтор'
             '\n'.join([
-                ',\t'.join([str(n), recipe.name.capitalize(), str(recipe.author)])
+                f'{n+1},\t{recipe.name.capitalize()},\t{recipe.author}'
                 for n, recipe in enumerate(recipes)
             ]),
-        ]))
-        response = FileResponse(buffer, filename='Покупки.txt', as_attachment=True)
-        response['Content-Type'] = 'text/plain'
+        ])
+        response = FileResponse(output_text, filename='Покупки.txt', as_attachment=True)
         return response
 
     @action(methods=['GET'], detail=True,
@@ -148,12 +150,12 @@ class RecipesViewSet(ModelViewSet):
             url_path='get-link', url_name='get-short-link')
     def get_link(self, request, pk=None, *args, **kwargs):
         """Получить короткую ссылку"""
-        recipe = get_object_or_404(Recipe, pk=pk)
-
-        return Response(RecipeShortLinkSerializer(
-            instance=recipe,
-            context=self.get_serializer_context()
-        ).data)
+        if not Recipe.objects.filter(pk=pk).exists():
+            raise status.HTTP_404_NOT_FOUND
+        short_link = shorten_url(self.kwargs['pk'], settings.RECIPE_SHORT_LINK_BASE_PATH)
+        return Response({
+            'short-link': self.request.build_absolute_uri(short_link)
+        })
 
     @action(methods=['POST', 'DELETE'], detail=True,
             permission_classes=[IsAuthenticated],
@@ -162,35 +164,15 @@ class RecipesViewSet(ModelViewSet):
         """Добавить или удалить рецепт из списка покупок"""
         recipe = get_object_or_404(Recipe, pk=pk)
         user = request.user
-
         if request.method == 'DELETE':
-            return self._delete_from_shopping_cart(recipe, user)
-        else:
-            return self._add_to_shopping_cart(recipe, user)
-
-    def _add_to_shopping_cart(self, recipe, user):
-        if ShoppingCart.objects.filter(user=user, recipe=recipe).count() != 0:
-            return Response({'detail': 'Рецепт уже в списке покупок'},
-                            status=status.HTTP_400_BAD_REQUEST)
-        ShoppingCart.objects.get_or_create(user=user, recipe=recipe)
-        return Response(
-            RecipeShortenSerializer(instance=recipe,
-                                    context=self.get_serializer_context()
-                                    ).data,
-            status=status.HTTP_201_CREATED
+            return self._delete_from_model(
+                ShoppingCart, user, recipe,
+                f'Рецепт {recipe} не добавлен в список покупок'
+            )
+        return self._add_to_model(
+            ShoppingCart, user, recipe,
+            f'Рецепт "{recipe}" уже в списке покупок'
         )
-
-    def _delete_from_shopping_cart(self, recipe, user):
-        """Удалить рецепт из списка покупок"""
-        try:
-            recipe_in_shopping_cart = ShoppingCart.objects.get(
-                user=user, recipe=recipe)
-        except ShoppingCart.DoesNotExist:
-            return Response({'detail': 'Рецепт не добавлен в список покупок'},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        recipe_in_shopping_cart.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['POST', 'DELETE'], detail=True,
             permission_classes=[IsAuthenticated],
@@ -199,41 +181,37 @@ class RecipesViewSet(ModelViewSet):
         """Добавить рецепт в избранное"""
         recipe = get_object_or_404(Recipe, pk=pk)
         user = request.user
-
         if request.method == 'DELETE':
-            return self._delete_from_favorite(recipe, user)
-        else:
-            return self._add_to_favorite(recipe, user)
-
-    def _add_to_favorite(self, recipe, user):
-        if FavoriteRecipe.objects.filter(user=user, recipe=recipe).count() != 0:
-            return Response(
-                {'detail': 'Рецепт уже в избранном'},
-                status=status.HTTP_400_BAD_REQUEST
+            return self._delete_from_model(
+                FavoriteRecipe, user, recipe,
+                f'Рецепт "{recipe}" ещё не добавлен в избранное'
             )
-        FavoriteRecipe.objects.create(user=user, recipe=recipe)
-        return Response(
-            RecipeShortenSerializer(
-                instance=recipe,
-                context=self.get_serializer_context()
-            ).data,
-            status=status.HTTP_201_CREATED
+        return self._add_to_model(
+            FavoriteRecipe, user, recipe,
+            f'Рецепт "{recipe}" уже в избранном'
         )
 
-    def _delete_from_favorite(self, recipe, user):
-        """Удалить рецепт из избранного"""
-        try:
-            recipe_favorite = FavoriteRecipe.objects.get(
-                user=user, recipe=recipe)
-        except FavoriteRecipe.DoesNotExist:
-            return Response({'detail': 'Рецепт ещё не добавлен в избранное'},
+    def _add_to_model(self, model_class, user, recipe,
+                      exists_error_text,
+                      response_serializer=RecipeShortenSerializer):
+        _, is_created = model_class.objects.get_or_create(user=user, recipe=recipe)
+        if is_created:
+            return Response({'detail': exists_error_text},
                             status=status.HTTP_400_BAD_REQUEST)
+        return Response(response_serializer(
+                instance=recipe, context=self.get_serializer_context()
+            ).data, status=status.HTTP_201_CREATED)
 
-        recipe_favorite.delete()
-        return Response(
-            status=status.HTTP_204_NO_CONTENT
-        )
-
+    def _delete_from_model(self, model_class, user, recipe,
+                           not_exists_error_text):
+        try:
+            item = model_class.objects.get(
+                user=user, recipe=recipe)
+        except model_class.DoesNotExist:
+            return Response({'detail': not_exists_error_text},
+                            status=status.HTTP_400_BAD_REQUEST)
+        item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class IngredientViewSet(ReadOnlyModelViewSet):
@@ -250,7 +228,7 @@ class IngredientViewSet(ReadOnlyModelViewSet):
 class UsersViewSet(djoser_UserViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [AllowAny, IsUserSelfOrCreateAndReadOnly]
+    permission_classes = [AllowAny]
     filterset_fields = []
 
     def get_queryset(self):
@@ -267,7 +245,7 @@ class UsersViewSet(djoser_UserViewSet):
 
     def get_permissions(self):
         if self.action == 'me':
-            self.permission_classes = [IsAuthenticated]
+            return [IsAuthenticated]
         return super().get_permissions()
 
     @action(detail=False, methods=['PUT', 'DELETE'],
@@ -348,12 +326,14 @@ class UsersViewSet(djoser_UserViewSet):
                 {'detail': 'Нельзя подписаться на самого себя'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if Subscription.objects.filter(author=author, follower=user).exists():
+        _, is_created = Subscription.objects.get_or_create(
+            author=author, follower=user
+        )
+        if not is_created:
             return Response(
                 {'detail': f'Вы уже подписаны на пользователя: {author}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        Subscription.objects.create(author=author, follower=user)
         if recipes_limit:
             author.recipes_limited = author.recipes.all()[:int(recipes_limit)]
         serializer = UserWithRecipesSerializer(

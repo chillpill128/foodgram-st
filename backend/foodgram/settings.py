@@ -139,10 +139,7 @@ DJOSER = {
     'TOKEN_MODEL': 'rest_framework.authtoken.models.Token',
     'PERMISSIONS': {
         'user_list': ['rest_framework.permissions.AllowAny'],
-        'user': [
-            # 'rest_framework.permissions.AllowAny',
-            'djoser.permissions.CurrentUserOrAdminOrReadOnly'
-        ],
+        'user': ['djoser.permissions.CurrentUserOrAdminOrReadOnly'],
         'user_delete': ['rest_framework.permissions.IsAdminUser'],
         'username_reset': ['rest_framework.permissions.IsAdminUser'],
         'username_reset_confirm': ['rest_framework.permissions.IsAdminUser'],

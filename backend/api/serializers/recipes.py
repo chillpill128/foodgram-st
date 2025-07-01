@@ -1,5 +1,4 @@
 from django.conf import settings
-from rest_framework.generics import get_object_or_404
 from rest_framework.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
@@ -105,17 +104,3 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
             amount=recipe_ingredient['amount']
         ) for recipe_ingredient in recipeingredients]
         RecipeIngredients.objects.bulk_create(ingredients)
-
-
-class RecipeShortLinkSerializer(Serializer):
-    short_link = serializers.SerializerMethodField()
-
-    def get_short_link(self, obj):
-        short_link = shorten_url(obj.pk, settings.RECIPE_SHORT_LINK_BASE_PATH)
-        return self.context['request'].build_absolute_uri(short_link)
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if 'short_link' in data:
-            data['short-link'] = data.pop('short_link')
-        return data

@@ -1,45 +1,35 @@
 import json
-import csv
 from django.core.management.base import BaseCommand
 from recipes.models import Ingredient
 
 
 class Command(BaseCommand):
-    help = 'Load ingredients data from JSON or CSV file into the database'
+    help = 'Загружает в базу ингредиенты из JSON-файла'
 
     def add_arguments(self, parser):
-        parser.add_argument('file_path', type=str,
-                            help='Путь к файлу с ингредиентами (в формате JSON или CSV)')
+        parser.add_argument(
+            'file_path', type=str,
+            help='Путь к файлу с ингредиентами (в формате JSON)'
+        )
 
     def handle(self, *args, **options):
-        file_path = options['file_path']
-
-        new_data = set(self.read_file(file_path))
-        existing = set(Ingredient.objects.values_list('name', 'measurement_unit'))
-        to_upload = list(new_data - existing)
-        if not to_upload:
-            print('Нет новых ингредиентов для добавления в базу')
+        try:
+            with open(options['file_path'], 'r', encoding='utf-8') as file:
+                data = json.load(file)
+        except (FileNotFoundError, PermissionError, json.JSONDecodeError) as err:
+            print(f'Невозможно считать файл {options["file_path"]}. Ошибка: {err}')
+            return
+        except Exception as err:
+            print(f'Ошибка: {err}')
             return
 
-        new_ingredients = [Ingredient(name=item[0], measurement_unit=item[1])
-                           for item in to_upload]
-        Ingredient.objects.bulk_create(new_ingredients, batch_size=1000)
-        print(f'В базу добавлено {len(new_ingredients)} шт. новых ингредиентов')
-
-    @staticmethod
-    def read_file(file_path):
-        file_format = file_path.lower().split('.')[-1]
-
-        data = []
-        with open(file_path, 'r', encoding='utf-8') as file:
-            if file_format == 'csv':
-                reader = csv.reader(file)
-                data = [(row[0], row[1])
-                        for row in reader if row]
-            elif file_format == 'json':
-                data = json.load(file)
-                data = [(item['name'], item['measurement_unit']) for item in data]
-            else:
-                raise ValueError('Невозможно определить формат файла')
-
-        return data
+        new_ingredients = [
+            Ingredient(name=item['name'], measurement_unit=item['measurement_unit'])
+            for item in data
+        ]
+        created_ingredients = Ingredient.objects.bulk_create(
+            new_ingredients,
+            ignore_conflicts=True,
+            unique_fields=('name', 'measurement_unit')
+        )
+        print(f'В базу добавлено {len(created_ingredients)} шт. новых ингредиентов')
