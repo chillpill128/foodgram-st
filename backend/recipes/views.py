@@ -1,10 +1,10 @@
-from django.http.response import HttpResponseRedirect
-from django.urls import reverse
+from django.http.response import Http404
+from django.shortcuts import redirect
+from .models import Recipe
 
-from .utils import get_pk_from_short_code
 
+def short_link_redirect_view(request, recipe_id):
+    if not Recipe.objects.filter(pk=recipe_id).exists():
+        raise Http404(f'Рецепт с id {recipe_id} не существует!')
 
-def short_link_view(request, short_code):
-    pk = get_pk_from_short_code(short_code)
-    url = reverse('recipe-detail', kwargs={'pk': pk})
-    return HttpResponseRedirect(url)
+    return redirect(f'/api/recipes/{recipe_id}')

@@ -1,9 +1,7 @@
-from django.conf import settings
-from rest_framework.serializers import ModelSerializer, Serializer
+from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
 from recipes.models import Ingredient, Recipe, RecipeIngredients
-from recipes.utils import shorten_url
 from .fields import Base64ImageField
 from .users import UserSerializer
 
@@ -50,17 +48,19 @@ class RecipeViewSerializer(ModelSerializer):
         return bool(hasattr(obj, 'is_in_shopping_cart') and obj.is_in_shopping_cart)
 
 
-class RecipeIngredientAddSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
+class RecipeIngredientAddSerializer(RecipeIngredientViewSerializer):
+    id = serializers.PrimaryKeyRelatedField(source='ingredient.id',
+                                            queryset=Ingredient.objects.all())
     amount = serializers.IntegerField(min_value=1)
 
-    def validate(self, attrs):
-        if not Ingredient.objects.filter(pk=attrs['id']).exists():
-            raise serializers.ValidationError(f'Ингредиент с id={attrs["id"]} не существует.')
-        return attrs
+    class Meta:
+        model = RecipeIngredients
+        fields = ['id', 'name', 'measurement_unit', 'amount']
+        read_only_fields = ['name', 'measurement_unit']
 
 
-class RecipeChangeSerializer(serializers.ModelSerializer):
+class RecipeChangeSerializer(RecipeViewSerializer):
+    author = UserSerializer(read_only=True)
     ingredients = RecipeIngredientAddSerializer(
         many=True, source='recipeingredients', required=True
     )
@@ -68,10 +68,13 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        fields = ('ingredients', 'image', 'name', 'text', 'cooking_time')
+        fields =  ['id', 'author', 'ingredients', 'is_favorited',
+                   'is_in_shopping_cart', 'name', 'image', 'text',
+                   'cooking_time']
+        read_only_fields = ['id', 'author', 'is_favorited', 'is_in_shopping_cart']
 
     def validate_ingredients(self, value):
-        ids = [item['id'] for item in value]
+        ids = [item['ingredient']['id'].id for item in value]
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError('Ингредиенты не должны повторяться.')
         return value
@@ -100,7 +103,7 @@ class RecipeChangeSerializer(serializers.ModelSerializer):
         recipe.recipeingredients.all().delete()
         ingredients = [RecipeIngredients(
             recipe=recipe,
-            ingredient_id=recipe_ingredient['id'],
+            ingredient=recipe_ingredient['ingredient']['id'],
             amount=recipe_ingredient['amount']
         ) for recipe_ingredient in recipeingredients]
         RecipeIngredients.objects.bulk_create(ingredients)

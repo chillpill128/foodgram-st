@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.contrib.auth.models import AbstractUser
 
 
@@ -7,16 +7,16 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
 
-    email = models.EmailField('Электронная почта', max_length=255,
+    username = models.CharField(
+        max_length=150, unique=True,
+        validators=[RegexValidator(regex=r'^[\w+-.@]+$')]
+    )
+    email = models.EmailField('Электронная почта', max_length=254,
                               unique=True)
+    first_name = models.CharField('Имя', max_length=150)
+    last_name = models.CharField('Фамилия', max_length=150)
     avatar = models.ImageField('Аватар', default=None, null=True,
                                upload_to='avatars')
-
-    authors = models.ManyToManyField('self', verbose_name='Авторы',
-                                     related_name='followers',
-                                     through='Subscription',
-                                     symmetrical=False,
-                                     through_fields=('follower', 'author'))
 
     class Meta:
         ordering = ['email']
@@ -30,10 +30,10 @@ class User(AbstractUser):
 class Subscription(models.Model):
     author = models.ForeignKey(User, verbose_name='Автор',
                                on_delete=models.CASCADE,
-                               related_name='subscriptions_on_me')
+                               related_name='followers')
     follower = models.ForeignKey(User, verbose_name='Подписчик',
                                  on_delete=models.CASCADE,
-                                 related_name='subscriptions_my')
+                                 related_name='authors')
 
     class Meta:
         constraints = [models.UniqueConstraint(
@@ -121,18 +121,18 @@ class UserRecipeBase(models.Model):
 
     class Meta:
         abstract = True
-        ordering = ['user', 'recipe']
-        constraints = [models.UniqueConstraint(
-            fields=['user', 'recipe'],
-            name='unique_user__recipe'
-        )]
 
     def __str__(self):
-        return f'{self.user.name} - {self.recipe.name}'
+        return f'{self.user.first_name} {self.user.last_name} - {self.recipe.name}'
 
 
 class ShoppingCart(UserRecipeBase):
     class Meta:
+        ordering = ['user', 'recipe']
+        constraints = [models.UniqueConstraint(
+            fields=['user', 'recipe'],
+            name='unique_user__recipe__in__shopping_cart'
+        )]
         default_related_name = 'shopping_carts'
         verbose_name = 'Рецепт в корзине'
         verbose_name_plural = 'Рецепты в корзине'
@@ -140,6 +140,11 @@ class ShoppingCart(UserRecipeBase):
 
 class FavoriteRecipe(UserRecipeBase):
     class Meta:
+        ordering = ['user', 'recipe']
+        constraints = [models.UniqueConstraint(
+            fields=['user', 'recipe'],
+            name='unique_user__recipe__in_favorite_recipe'
+        )]
         default_related_name = 'favorites'
         verbose_name = 'Рецепт в избранном'
         verbose_name_plural = 'Рецепты в избранном'

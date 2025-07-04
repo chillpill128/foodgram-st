@@ -132,7 +132,7 @@ DJOSER = {
     'USER_CREATE_PASSWORD_RETYPE': False,
     'HIDE_USERS': False,
     'SERIALIZERS': {
-        'user_create': 'api.serializers.users.UserCreateSerializer',
+        'user_create': 'djoser.serializers.UserCreateSerializer',
         'user': 'api.serializers.users.UserSerializer',
         'current_user': 'api.serializers.users.UserSerializer',
     },
@@ -149,4 +149,4 @@ DJOSER = {
     },
 }
 
-RECIPE_SHORT_LINK_BASE_PATH = 's/'
+RECIPE_SHORT_LINK_BASE_PATH = 's'
