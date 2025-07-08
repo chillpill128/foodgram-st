@@ -30,7 +30,6 @@ class RecipeViewSerializer(ModelSerializer):
     ingredients = RecipeIngredientViewSerializer(
         source='recipeingredients', many=True, read_only=True
     )
-    image = serializers.ImageField()
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
 
@@ -42,16 +41,21 @@ class RecipeViewSerializer(ModelSerializer):
         read_only_fields = fields
 
     def get_is_favorited(self, obj):
-        return bool(hasattr(obj, 'is_favorited') and obj.is_favorited)
+        return hasattr(obj, 'is_favorited') and obj.is_favorited
 
     def get_is_in_shopping_cart(self, obj):
-        return bool(hasattr(obj, 'is_in_shopping_cart') and obj.is_in_shopping_cart)
+        return hasattr(obj, 'is_in_shopping_cart') and obj.is_in_shopping_cart
 
 
-class RecipeIngredientAddSerializer(RecipeIngredientViewSerializer):
+class RecipeIngredientAddSerializer(ModelSerializer):
     id = serializers.PrimaryKeyRelatedField(source='ingredient.id',
                                             queryset=Ingredient.objects.all())
     amount = serializers.IntegerField(min_value=1)
+
+    name = serializers.ReadOnlyField(source='ingredient.name')
+    measurement_unit = serializers.ReadOnlyField(
+        source='ingredient.measurement_unit'
+    )
 
     class Meta:
         model = RecipeIngredients
@@ -59,12 +63,16 @@ class RecipeIngredientAddSerializer(RecipeIngredientViewSerializer):
         read_only_fields = ['name', 'measurement_unit']
 
 
-class RecipeChangeSerializer(RecipeViewSerializer):
+class RecipeChangeSerializer(ModelSerializer):
     author = UserSerializer(read_only=True)
     ingredients = RecipeIngredientAddSerializer(
         many=True, source='recipeingredients', required=True
     )
     image = Base64ImageField(required=True)
+    cooking_time = serializers.IntegerField(min_value=1, required=True)
+
+    is_favorited = serializers.SerializerMethodField()
+    is_in_shopping_cart = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -72,6 +80,12 @@ class RecipeChangeSerializer(RecipeViewSerializer):
                    'is_in_shopping_cart', 'name', 'image', 'text',
                    'cooking_time']
         read_only_fields = ['id', 'author', 'is_favorited', 'is_in_shopping_cart']
+
+    def get_is_favorited(self, obj):
+        return hasattr(obj, 'is_favorited') and obj.is_favorited
+
+    def get_is_in_shopping_cart(self, obj):
+        return hasattr(obj, 'is_in_shopping_cart') and obj.is_in_shopping_cart
 
     def validate_ingredients(self, value):
         ids = [item['ingredient']['id'].id for item in value]
@@ -95,15 +109,13 @@ class RecipeChangeSerializer(RecipeViewSerializer):
 
     def update(self, instance, validated_data):
         recipeingredients = validated_data.pop('recipeingredients', [])
-        instance = super().update(instance, validated_data)
         self.set_recipe_ingredients(instance, recipeingredients)
-        return instance
+        return super().update(instance, validated_data)
 
     def set_recipe_ingredients(self, recipe, recipeingredients):
         recipe.recipeingredients.all().delete()
-        ingredients = [RecipeIngredients(
+        RecipeIngredients.objects.bulk_create([RecipeIngredients(
             recipe=recipe,
             ingredient=recipe_ingredient['ingredient']['id'],
             amount=recipe_ingredient['amount']
-        ) for recipe_ingredient in recipeingredients]
-        RecipeIngredients.objects.bulk_create(ingredients)
+        ) for recipe_ingredient in recipeingredients])

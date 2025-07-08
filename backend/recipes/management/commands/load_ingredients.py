@@ -16,20 +16,10 @@ class Command(BaseCommand):
         try:
             with open(options['file_path'], 'r', encoding='utf-8') as file:
                 data = json.load(file)
-        except (FileNotFoundError, PermissionError, json.JSONDecodeError) as err:
-            print(f'Невозможно считать файл {options["file_path"]}. Ошибка: {err}')
-            return
+            created_ingredients = Ingredient.objects.bulk_create(
+                [Ingredient(**item) for item in data],
+                ignore_conflicts=True,
+            )
+            print(f'В базу добавлено {len(created_ingredients)} шт. новых ингредиентов')
         except Exception as err:
-            print(f'Ошибка: {err}')
-            return
-
-        new_ingredients = [
-            Ingredient(name=item['name'], measurement_unit=item['measurement_unit'])
-            for item in data
-        ]
-        created_ingredients = Ingredient.objects.bulk_create(
-            new_ingredients,
-            ignore_conflicts=True,
-            unique_fields=('name', 'measurement_unit')
-        )
-        print(f'В базу добавлено {len(created_ingredients)} шт. новых ингредиентов')
+            print(f'При обработке файла {options["file_path"]} возникла ошибка: {err}')

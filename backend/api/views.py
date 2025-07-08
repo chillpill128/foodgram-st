@@ -1,9 +1,9 @@
 import os
 import datetime
-from django.conf import settings
 from django.http import FileResponse
 from django.db.models import BooleanField, Count, Q, OuterRef, Prefetch, Sum, Subquery
 from django.db.models.functions import Lower
+from django.urls import reverse
 from djoser.views import UserViewSet as djoser_UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
@@ -75,18 +75,9 @@ class RecipesViewSet(ModelViewSet):
             return RecipeChangeSerializer
         return self.serializer_class
 
-    @staticmethod
-    def perform_save(serializer):
-        recipe = serializer.save()
-        recipe.is_favorited = recipe.favorites.count() > 0
-        recipe.is_in_shopping_cart = recipe.shopping_carts.count() > 0
-        serializer.instance = recipe
-
-    def perform_update(self, serializer):
-        self.perform_save(serializer)
-
     def perform_create(self, serializer):
-        self.perform_save(serializer)
+        serializer.validated_data['author'] = self.request.user
+        serializer.save()
 
     @action(methods=['GET'], detail=False, permission_classes=[IsAuthenticated],
             url_path='download_shopping_cart', url_name='download-shopping-cart')
@@ -108,14 +99,14 @@ class RecipesViewSet(ModelViewSet):
             f'Список продуктов. Сформирован {current_date}',
             '№,\tНазвание,\tКоличество,\tЕдиница измерения'
             '\n'.join([
-                f'{n+1},\t{ing.name.capitalize()},\t{ing.amount},\t{ing.measurement_unit}'
-                for n, ing in enumerate(ingredients)
+                f'{n},\t{ing.name.capitalize()},\t{ing.amount},\t{ing.measurement_unit}'
+                for n, ing in enumerate(ingredients, start=1)
             ]),
             '\nСписок рецептов, для которых эти продукты:',
             '№,\tНазвание,\tАвтор'
             '\n'.join([
-                f'{n+1},\t{recipe.name.capitalize()},\t{recipe.author}'
-                for n, recipe in enumerate(recipes)
+                f'{n},\t{recipe.name.capitalize()},\t{recipe.author}'
+                for n, recipe in enumerate(recipes, start=1)
             ]),
         ])
         response = FileResponse(output_text, filename='Покупки.txt', as_attachment=True)
@@ -128,9 +119,10 @@ class RecipesViewSet(ModelViewSet):
         """Получить короткую ссылку"""
         if not Recipe.objects.filter(pk=pk).exists():
             raise status.HTTP_404_NOT_FOUND
-        short_link = f'/{settings.RECIPE_SHORT_LINK_BASE_PATH}/{pk}'
         return Response({
-            'short-link': self.request.build_absolute_uri(short_link)
+            'short-link': self.request.build_absolute_uri(
+                reverse('recipe-short-link-redirect', kwargs={'pk': pk})
+            )
         })
 
     @action(methods=['POST', 'DELETE'], detail=True,
@@ -138,49 +130,34 @@ class RecipesViewSet(ModelViewSet):
             url_path='shopping_cart', url_name='add-delete-shopping-cart')
     def add_delete_shopping_cart(self, request, pk=None, *args, **kwargs):
         """Добавить или удалить рецепт из списка покупок"""
-        recipe = get_object_or_404(Recipe, pk=pk)
         user = request.user
         if request.method == 'DELETE':
-            return self._delete_from_model(
-                ShoppingCart, user, recipe,
-                f'Рецепт {recipe} не добавлен в список покупок'
-            )
-        return self._add_to_model(
-            ShoppingCart, user, recipe,
-            f'Рецепт "{recipe}" уже в списке покупок'
-        )
+            return self._delete_from_model(ShoppingCart, user, pk)
+        return self._add_to_model(ShoppingCart, user, pk)
 
     @action(methods=['POST', 'DELETE'], detail=True,
             permission_classes=[IsAuthenticated],
             url_path='favorite', url_name='add-favorite')
     def add_delete_favorite(self, request, pk=None, *args, **kwargs):
         """Добавить рецепт в избранное"""
-        recipe = get_object_or_404(Recipe, pk=pk)
         user = request.user
         if request.method == 'DELETE':
-            return self._delete_from_model(
-                FavoriteRecipe, user, recipe,
-                f'Рецепт "{recipe}" ещё не добавлен в избранное'
-            )
-        return self._add_to_model(
-            FavoriteRecipe, user, recipe,
-            f'Рецепт "{recipe}" уже в избранном'
-        )
+            return self._delete_from_model(FavoriteRecipe, user, pk)
+        return self._add_to_model(FavoriteRecipe, user, pk)
 
-    def _add_to_model(self, model_class, user, recipe,
-                      exists_error_text,
-                      response_serializer=RecipeShortSerializer):
+    def _add_to_model(self, model_class, user, recipe_pk):
+        recipe = get_object_or_404(Recipe, pk=recipe_pk)
         _, is_created = model_class.objects.get_or_create(user=user, recipe=recipe)
         if not is_created:
-            return Response({'detail': exists_error_text},
-                            status=status.HTTP_400_BAD_REQUEST)
-        return Response(response_serializer(
+            return Response({
+                'detail': f'Рецепт "{recipe}" уже добавлен в {model_class.Meta.verbose_name}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(RecipeShortSerializer(
                 instance=recipe, context=self.get_serializer_context()
             ).data, status=status.HTTP_201_CREATED)
 
-    def _delete_from_model(self, model_class, user, recipe,
-                           not_exists_error_text):
-        get_object_or_404(model_class, user=user, recipe=recipe).delete()
+    def _delete_from_model(self, model_class, user, recipe_pk):
+        get_object_or_404(model_class, user=user, recipe_id=recipe_pk).delete()
         # try:
         #     item = model_class.objects.get(
         #         user=user, recipe=recipe)
@@ -214,8 +191,8 @@ class UsersViewSet(djoser_UserViewSet):
 
         if user.is_authenticated:
             users_qs = users_qs.annotate(is_subscribed=Count(
-                'followers__follower_id',
-                filter=Q(followers__follower=user),
+                'subscriptions_author__follower_id',
+                filter=Q(subscriptions_author__follower=user),
                 output_field=BooleanField()
             ))
         return users_qs
@@ -261,17 +238,16 @@ class UsersViewSet(djoser_UserViewSet):
         """Мои подписки"""
         user = request.user
 
-        recipes_limit = request.query_params.get('recipes_limit', None)
+        # recipes_limit = request.query_params.get('recipes_limit', None)
+        # if recipes_limit:
+        #     limited_subq = Recipe.objects.filter(author=OuterRef('author')) \
+        #         .order_by('id').values('id')[:int(recipes_limit)]
+        #     recipes_qs = Recipe.objects.filter(id__in=Subquery(limited_subq))
+        # else:
+        #     recipes_qs = Recipe.objects.all()
+        # .prefetch_related(Prefetch('recipes', queryset=recipes_qs)) \
 
-        if recipes_limit:
-            limited_subq = Recipe.objects.filter(author=OuterRef('author')) \
-                .order_by('id').values('id')[:int(recipes_limit)]
-            recipes_qs = Recipe.objects.filter(id__in=Subquery(limited_subq))
-        else:
-            recipes_qs = Recipe.objects.all()
-
-        users_qs = User.objects.filter(followers__follower=user) \
-            .prefetch_related(Prefetch('recipes', queryset=recipes_qs)) \
+        users_qs = User.objects.filter(subscriptions_author__follower=user) \
             .annotate(recipes_count=Count('recipes'))
         page = self.paginate_queryset(users_qs)
         serializer = UserWithRecipesSerializer(
@@ -317,12 +293,12 @@ class UsersViewSet(djoser_UserViewSet):
 
     def _unsubscribe(self, user, author):
         """Отписаться от пользователя"""
-        if user == author:
-            return Response(
-                {'detail': 'Нельзя отписаться от самого себя'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         get_object_or_404(Subscription, author=author, follower=user).delete()
+        # if user == author:
+        #     return Response(
+        #         {'detail': 'Нельзя отписаться от самого себя'},
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
         # try:
         #     subscr = Subscription.objects.get(author=author, follower=user)
         # except Subscription.DoesNotExist:

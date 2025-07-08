@@ -30,11 +30,7 @@ class ShoppingCartInlineAdmin(admin.TabularInline):
 
 class BaseHasSomethingFilter(admin.SimpleListFilter):
     item_to_filter = ''
-    def lookups(self, request, model_admin):
-        return [
-            ('yes', 'Да'),
-            ('no', 'Нет'),
-        ]
+    lookup_choices = [('yes', 'Да'), ('no', 'Нет')]
 
     def queryset(self, request, user_qs):
         if self.value() == 'yes':
@@ -46,7 +42,7 @@ class BaseHasSomethingFilter(admin.SimpleListFilter):
 
 class HasRecipesFilter(BaseHasSomethingFilter):
     item_to_filter = '_recipes_count'
-    title = 'Есть рецпеты'
+    title = 'Есть рецепты'
     parameter_name = 'has-recipes'
 
 class HasAuthorsFilter(BaseHasSomethingFilter):
@@ -85,8 +81,8 @@ class UserAdmin(auth_UserAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(
-            _followers_count=Count('followers', distinct=True),
-            _authors_count=Count('authors', distinct=True),
+            _followers_count=Count('subscriptions_author', distinct=True),
+            _authors_count=Count('subscriptions_follower', distinct=True),
             _recipes_count=Count('recipes', distinct=True),
         )
 
@@ -94,15 +90,15 @@ class UserAdmin(auth_UserAdmin):
     def full_name(self, obj):
         return f'{obj.first_name} {obj.last_name}'
 
-    @admin.display(ordering='_recipes_count', description='Количество рецептов')
+    @admin.display(ordering='_recipes_count', description='Рецептов')
     def recipes_count(self, obj):
         return obj._recipes_count
 
-    @admin.display(ordering='_followers_count', description='Количество подписчиков')
+    @admin.display(ordering='_followers_count', description='Подписчиков')
     def followers_count(self, obj):
         return obj._followers_count
 
-    @admin.display(ordering='_authors_count', description='Количество подписок')
+    @admin.display(ordering='_authors_count', description='Подписок')
     def authors_count(self, obj):
         return obj._authors_count
 
@@ -134,7 +130,7 @@ class IngredientAdmin(admin.ModelAdmin):
             _recipes_count=Count('recipeingredients', distinct=True)
         )
 
-    @admin.display(ordering='_recipes_count', description='Количество рецептов')
+    @admin.display(ordering='_recipes_count', description='Рецептов')
     def recipes_count(self, obj):
         return obj._recipes_count
 
@@ -167,10 +163,10 @@ class RecipeAdmin(admin.ModelAdmin):
     @admin.display(description='Ингредиенты')
     @mark_safe
     def ingredients_list(self, obj):
-        recipeingredients = obj.recipeingredients.all().select_related('ingredient')
-        items = [f'{ri.ingredient.name} - {ri.amount} {ri.ingredient.measurement_unit}'
-                 for ri in recipeingredients]
-        return '<br/>'.join(items)
+        return '<br/>'.join([
+            f'{ri.ingredient.name} - {ri.amount} {ri.ingredient.measurement_unit}'
+            for ri in obj.recipeingredients.all().select_related('ingredient')
+        ])
 
     @admin.display(description='Превью')
     @mark_safe

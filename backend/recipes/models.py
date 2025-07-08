@@ -28,13 +28,28 @@ class User(AbstractUser):
 
 
 class Subscription(models.Model):
+    # """
+    # Подписки пользователей.
+    # >>> author = User.objects.create(email='author@loc.al', username='author', first_name='author', last_name='-')
+    # >>> follower = User.objects.create(email='follower@loc.al', username='follower', first_name='follower', last_name='-')
+    # >>> sub = Subscription.objects.create(author=author, follower=follower)
+    # >>> author.followers.first().follower == follower
+    # True
+    # >>> follower.authors.first().author == author
+    # True
+    # """
+    # author = models.ForeignKey(User, verbose_name='Автор',
+    #                            on_delete=models.CASCADE,
+    #                            related_name='followers')
+    # follower = models.ForeignKey(User, verbose_name='Подписчик',
+    #                              on_delete=models.CASCADE,
+    #                              related_name='authors')
     author = models.ForeignKey(User, verbose_name='Автор',
                                on_delete=models.CASCADE,
-                               related_name='followers')
+                               related_name='subscriptions_author')
     follower = models.ForeignKey(User, verbose_name='Подписчик',
                                  on_delete=models.CASCADE,
-                                 related_name='authors')
-
+                                 related_name='subscriptions_follower')
     class Meta:
         constraints = [models.UniqueConstraint(
             fields=['author', 'follower'],
@@ -116,8 +131,10 @@ class RecipeIngredients(models.Model):
 
 
 class UserRecipeBase(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE,
+                             verbose_name='Пользователь')
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE,
+                               verbose_name='Рецепт')
 
     class Meta:
         abstract = True

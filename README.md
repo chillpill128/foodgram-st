@@ -1,7 +1,12 @@
-Находясь в папке infra, выполните команду docker-compose up. При выполнении этой команды контейнер frontend, описанный в docker-compose.yml, подготовит файлы, необходимые для работы фронтенд-приложения, а затем прекратит свою работу.
 
-По адресу [localhost](http://localhost) изучите фронтенд веб-приложения, а по адресу [localhost/api/docs](
-http://localhost/api/docs/) — спецификацию API.
+### Фронтенд:
+- Собирается и стартует автоматически при запуске docker через команду docker-compose:
+```bash
+cd ./infra
+docker-compose up
+```
+- При выполнении этой команды контейнер frontend, описанный в docker-compose.yml, подготовит файлы, необходимые для работы фронтенд-приложения, а затем прекратит свою работу.
+- Фронтенд будет доступен по адресу [localhost](http://localhost)
 
 
 ### Бэкенд.
@@ -22,15 +27,26 @@ git clone https://github.com/chillpill128/foodgram-st
 #### Запуск через Docker (production):
 Для запуска docker-compose нужно перейти в папку infra и выполнить команду:
 ```bash
+cd ./infra
 docker-compose up
 ```
 
 #### Запуск локально (development):
-Перейдите в папку backend и выполните команды:
+Перейти в папку backend
 ```bash
+# (выйти из папки infra при необходимости:)
+cd ..
+cd ./backend
+```
+В папке backend выполнить команды:
+```bash
+# Виртуальное окружение:
 python -m venv venv && source venv/bin/activate
+# Зависимости:
 pip install -r requirements-dev.txt
+# Миграции:
 python manage.py migrate
+# Запуск сервера для разработки:
 python manage.py runserver
 ```
 #### Доступные команды
@@ -44,12 +60,15 @@ python manage.py load_ingredients ../data/ingredients.json
 
 ### Ссылки, ведущие на бэкенд:
 - **Админка**: [http://localhost:8000/admin/](http://localhost:8000/admin/)
-- **API**: [http://localhost:8000/](http://localhost:8000/api/)
+- **API**: [http://localhost:8000/api/](http://localhost:8000/api/)
 
 #### При запуске через docker-compose:
 - **Админка**: [http://localhost/admin/](http://localhost/admin/)
-- **API**: [http://localhost/](http://localhost/api/)
+- **API**: [http://localhost/api/](http://localhost/api/)
 
+#### Спецификация API
+- [localhost/api/docs](
+http://localhost/api/docs/)
 
 **Для остановки Docker**: `docker-compose down`*
 

@@ -1,17 +1,12 @@
-from django.core.validators import RegexValidator
-from djoser.serializers import (
-    UserSerializer as djoser_UserSerializer,
-    UserCreateSerializer as djoser_UserCreateSerializer
-)
-from rest_framework.serializers import ModelSerializer, Serializer
-from rest_framework.validators import UniqueValidator
+from djoser.serializers import UserSerializer as DjoserUserSerializer
+from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
 from recipes.models import User, Recipe
 from .fields import Base64ImageField
 
 
-class UserSerializer(djoser_UserSerializer):
+class UserSerializer(DjoserUserSerializer):
     avatar = serializers.ImageField()
     is_subscribed = serializers.SerializerMethodField()
 
@@ -28,34 +23,14 @@ class UserSerializer(djoser_UserSerializer):
         elif hasattr(obj, 'is_subscribed'):
             return bool(obj.is_subscribed)
         else:
-            return user.followers.filter(follower__pk=obj.pk).exists()
-
-
-# class UserCreateSerializer(djoser_UserCreateSerializer):
-#     username = serializers.CharField(max_length=150, required=True,
-#                                      validators=[
-#                                          RegexValidator(regex=r'^[\w+-.@]+$'),
-#                                          UniqueValidator(queryset=User.objects.all())
-#                                      ])
-#     email = serializers.EmailField(max_length=254, required=True,
-#                                    validators=[
-#                                        UniqueValidator(queryset=User.objects.all())
-#                                    ])
-#     first_name = serializers.CharField(max_length=150, required=True)
-#     last_name = serializers.CharField(max_length=150, required=True)
-#     password = serializers.CharField(max_length=128, write_only=True)
-#
-#     class Meta:
-#         model = User
-#         fields = ['email', 'id', 'username', 'first_name', 'last_name', 'password']
-#         read_only_fields = ['id']
-
+            return user.subscriptions_author.filter(follower__pk=obj.pk).exists()
 
 
 class RecipeShortSerializer(ModelSerializer):
     class Meta:
         model = Recipe
         fields = ['id', 'name', 'image', 'cooking_time']
+        read_only_fields = fields
 
 
 class UserWithRecipesSerializer(UserSerializer):
@@ -77,12 +52,10 @@ class UserWithRecipesSerializer(UserSerializer):
             return obj.recipes.count()
 
     def get_recipes(self, obj):
-        # В случае параметра из урла берём ограниченное кол-во рецептов
-        if hasattr(obj, 'recipes_limited'):
-            recipes = obj.recipes_limited
-        else:
-            # Если параметра нет, фильтровать ничего не нужно, выберем все записи.
-            recipes = obj.recipes.all()
+        recipes = obj.recipes.order_by('id')
+        limit = self.context['request'].query_params.get('recipes_limit', None)
+        if limit and limit.isdigit():
+            recipes = recipes[:int(limit)]
         return RecipeShortSerializer(instance=recipes, many=True,
                                        context=self.context).data
 
