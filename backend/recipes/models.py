@@ -28,22 +28,6 @@ class User(AbstractUser):
 
 
 class Subscription(models.Model):
-    # """
-    # Подписки пользователей.
-    # >>> author = User.objects.create(email='author@loc.al', username='author', first_name='author', last_name='-')
-    # >>> follower = User.objects.create(email='follower@loc.al', username='follower', first_name='follower', last_name='-')
-    # >>> sub = Subscription.objects.create(author=author, follower=follower)
-    # >>> author.followers.first().follower == follower
-    # True
-    # >>> follower.authors.first().author == author
-    # True
-    # """
-    # author = models.ForeignKey(User, verbose_name='Автор',
-    #                            on_delete=models.CASCADE,
-    #                            related_name='followers')
-    # follower = models.ForeignKey(User, verbose_name='Подписчик',
-    #                              on_delete=models.CASCADE,
-    #                              related_name='authors')
     author = models.ForeignKey(User, verbose_name='Автор',
                                on_delete=models.CASCADE,
                                related_name='subscriptions_author')

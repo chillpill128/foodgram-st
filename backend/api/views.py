@@ -121,7 +121,7 @@ class RecipesViewSet(ModelViewSet):
             raise status.HTTP_404_NOT_FOUND
         return Response({
             'short-link': self.request.build_absolute_uri(
-                reverse('recipe-short-link-redirect', kwargs={'pk': pk})
+                reverse('recipe-short-link-redirect', kwargs={'recipe_id': pk})
             )
         })
 
@@ -150,7 +150,7 @@ class RecipesViewSet(ModelViewSet):
         _, is_created = model_class.objects.get_or_create(user=user, recipe=recipe)
         if not is_created:
             return Response({
-                'detail': f'Рецепт "{recipe}" уже добавлен в {model_class.Meta.verbose_name}'
+                'detail': f'Рецепт "{recipe}" уже добавлен в {model_class._meta.verbose_name}'
             }, status=status.HTTP_400_BAD_REQUEST)
         return Response(RecipeShortSerializer(
                 instance=recipe, context=self.get_serializer_context()
@@ -158,13 +158,6 @@ class RecipesViewSet(ModelViewSet):
 
     def _delete_from_model(self, model_class, user, recipe_pk):
         get_object_or_404(model_class, user=user, recipe_id=recipe_pk).delete()
-        # try:
-        #     item = model_class.objects.get(
-        #         user=user, recipe=recipe)
-        # except model_class.DoesNotExist:
-        #     return Response({'detail': not_exists_error_text},
-        #                     status=status.HTTP_400_BAD_REQUEST)
-        # item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -178,8 +171,8 @@ class IngredientViewSet(ReadOnlyModelViewSet):
     pagination_class = None
 
 
-
 class UsersViewSet(djoser_UserViewSet):
+    """Пользователи"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
@@ -237,16 +230,6 @@ class UsersViewSet(djoser_UserViewSet):
     def subscriptions(self, request, *args, **kwargs):
         """Мои подписки"""
         user = request.user
-
-        # recipes_limit = request.query_params.get('recipes_limit', None)
-        # if recipes_limit:
-        #     limited_subq = Recipe.objects.filter(author=OuterRef('author')) \
-        #         .order_by('id').values('id')[:int(recipes_limit)]
-        #     recipes_qs = Recipe.objects.filter(id__in=Subquery(limited_subq))
-        # else:
-        #     recipes_qs = Recipe.objects.all()
-        # .prefetch_related(Prefetch('recipes', queryset=recipes_qs)) \
-
         users_qs = User.objects.filter(subscriptions_author__follower=user) \
             .annotate(recipes_count=Count('recipes'))
         page = self.paginate_queryset(users_qs)
@@ -294,17 +277,4 @@ class UsersViewSet(djoser_UserViewSet):
     def _unsubscribe(self, user, author):
         """Отписаться от пользователя"""
         get_object_or_404(Subscription, author=author, follower=user).delete()
-        # if user == author:
-        #     return Response(
-        #         {'detail': 'Нельзя отписаться от самого себя'},
-        #         status=status.HTTP_400_BAD_REQUEST
-        #     )
-        # try:
-        #     subscr = Subscription.objects.get(author=author, follower=user)
-        # except Subscription.DoesNotExist:
-        #     return Response(
-        #         {'detail': f'Вы не подписаны на пользователя: {author}'},
-        #         status=status.HTTP_400_BAD_REQUEST
-        #     )
-        # subscr.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

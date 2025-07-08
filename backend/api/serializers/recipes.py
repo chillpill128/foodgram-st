@@ -52,6 +52,8 @@ class RecipeIngredientAddSerializer(ModelSerializer):
                                             queryset=Ingredient.objects.all())
     amount = serializers.IntegerField(min_value=1)
 
+    # Поля name и measurement_unit требуются для отображения ингредиента
+    # В списке рецептов в ответе после его добавления/изменения.
     name = serializers.ReadOnlyField(source='ingredient.name')
     measurement_unit = serializers.ReadOnlyField(
         source='ingredient.measurement_unit'
@@ -64,13 +66,38 @@ class RecipeIngredientAddSerializer(ModelSerializer):
 
 
 class RecipeChangeSerializer(ModelSerializer):
-    author = UserSerializer(read_only=True)
     ingredients = RecipeIngredientAddSerializer(
         many=True, source='recipeingredients', required=True
     )
     image = Base64ImageField(required=True)
     cooking_time = serializers.IntegerField(min_value=1, required=True)
 
+    # Поля требуются для ответа после добавления/изменения рецепта.
+    # Раньше были переопределены методы create/update у RecipeView, сейчас
+    # используются стандартные от DRF.
+    # https://github.com/yandex-praktikum/foodgram-st/blob/main/docs/openapi-schema.yml
+    # стр. 153
+    # responses: ...
+    # schema:
+    # $ref: '#/components/schemas/RecipeList'
+    # стр. 799 (сокращено)
+    # RecipeList:
+    #     id: type: integer
+    #     author: $ref: '#/components/schemas/User'
+    #     ingredients: type: array $ref: '#/components/schemas/IngredientInRecipe'
+    #     is_favorited: type: boolean
+    #     is_in_shopping_cart: type: boolean
+    #     name: type: string maxLength: 256
+    #     image: type: string format: uri
+    #     text: type: string
+    #     cooking_time: type: integer minimum: 1
+    # стр. 888 (сокращено)
+    # IngredientInRecipe:
+    #     id:  type: integer
+    #     name:  type: string  maxLength: 128
+    #     measurement_unit:  type: string  maxLength: 64
+    #     amount:  type: integer  minimum: 1
+    author = UserSerializer(read_only=True)
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
 
