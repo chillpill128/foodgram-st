@@ -1,7 +1,7 @@
 import os
 import datetime
 from django.http import FileResponse
-from django.db.models import BooleanField, Count, Q, OuterRef, Prefetch, Sum, Subquery
+from django.db.models import BooleanField, Count, Q, Sum
 from django.db.models.functions import Lower
 from django.urls import reverse
 from djoser.views import UserViewSet as djoser_UserViewSet
@@ -76,8 +76,7 @@ class RecipesViewSet(ModelViewSet):
         return self.serializer_class
 
     def perform_create(self, serializer):
-        serializer.validated_data['author'] = self.request.user
-        serializer.save()
+        serializer.save(author=self.request.user)
 
     @action(methods=['GET'], detail=False, permission_classes=[IsAuthenticated],
             url_path='download_shopping_cart', url_name='download-shopping-cart')
@@ -118,7 +117,9 @@ class RecipesViewSet(ModelViewSet):
     def get_link(self, request, pk=None, *args, **kwargs):
         """Получить короткую ссылку"""
         if not Recipe.objects.filter(pk=pk).exists():
-            raise status.HTTP_404_NOT_FOUND
+            return Response({
+                'detail': f'Рецепт с данным id ({pk}) не существует!'
+            }, status=status.HTTP_404_NOT_FOUND)
         return Response({
             'short-link': self.request.build_absolute_uri(
                 reverse('recipe-short-link-redirect', kwargs={'recipe_id': pk})

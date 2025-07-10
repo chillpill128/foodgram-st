@@ -141,8 +141,8 @@ class RecipeChangeSerializer(ModelSerializer):
 
     def set_recipe_ingredients(self, recipe, recipeingredients):
         recipe.recipeingredients.all().delete()
-        RecipeIngredients.objects.bulk_create([RecipeIngredients(
+        RecipeIngredients.objects.bulk_create(RecipeIngredients(
             recipe=recipe,
             ingredient=recipe_ingredient['ingredient']['id'],
             amount=recipe_ingredient['amount']
-        ) for recipe_ingredient in recipeingredients])
+        ) for recipe_ingredient in recipeingredients)

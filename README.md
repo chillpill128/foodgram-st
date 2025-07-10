@@ -2,7 +2,8 @@
 ### Фронтенд:
 - Собирается и стартует автоматически при запуске docker через команду docker-compose:
 ```bash
-cd ./infra
+git clone https://github.com/chillpill128/foodgram-st
+cd foodgram-st/infra
 docker-compose up
 ```
 - При выполнении этой команды контейнер frontend, описанный в docker-compose.yml, подготовит файлы, необходимые для работы фронтенд-приложения, а затем прекратит свою работу.

@@ -52,7 +52,7 @@ class UserWithRecipesSerializer(UserSerializer):
             return obj.recipes.count()
 
     def get_recipes(self, obj):
-        recipes = obj.recipes.order_by('id')
+        recipes = obj.recipes.all()
         limit = self.context['request'].query_params.get('recipes_limit', None)
         if limit and limit.isdigit():
             recipes = recipes[:int(limit)]

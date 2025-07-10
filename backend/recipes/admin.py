@@ -163,10 +163,10 @@ class RecipeAdmin(admin.ModelAdmin):
     @admin.display(description='Ингредиенты')
     @mark_safe
     def ingredients_list(self, obj):
-        return '<br/>'.join([
+        return '<br/>'.join(
             f'{ri.ingredient.name} - {ri.amount} {ri.ingredient.measurement_unit}'
             for ri in obj.recipeingredients.all().select_related('ingredient')
-        ])
+        )
 
     @admin.display(description='Превью')
     @mark_safe

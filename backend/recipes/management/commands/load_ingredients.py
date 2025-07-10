@@ -15,11 +15,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         try:
             with open(options['file_path'], 'r', encoding='utf-8') as file:
-                data = json.load(file)
-            created_ingredients = Ingredient.objects.bulk_create(
-                [Ingredient(**item) for item in data],
-                ignore_conflicts=True,
-            )
+                created_ingredients = Ingredient.objects.bulk_create(
+                    [Ingredient(**item) for item in json.load(file)],
+                    ignore_conflicts=True,
+                )
             print(f'В базу добавлено {len(created_ingredients)} шт. новых ингредиентов')
         except Exception as err:
             print(f'При обработке файла {options["file_path"]} возникла ошибка: {err}')
